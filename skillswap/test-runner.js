@@ -1,13 +1,13 @@
-// Comprehensive automated test script for SkillSwap frontend logic and persistence
+// Automated integration and system test script for SkillSwap frontend services & backend
 import assert from 'node:assert'
-import { students as mockStudents, currentUser as initialAlex } from './src/data/mockData.js'
 import { authService } from './src/services/authService.js'
 import { exchangeService } from './src/services/exchangeService.js'
 import { studentService } from './src/services/studentService.js'
+import { getToken } from './src/services/apiClient.js'
 
-console.log('🧪 Starting SkillSwap Comprehensive System Tests...\n')
+console.log('🧪 Starting SkillSwap Comprehensive System & API Tests...\n')
 
-// Mock LocalStorage
+// Mock LocalStorage in Node.js environment
 const store = new Map()
 global.localStorage = {
   getItem: (k) => store.get(k) ?? null,
@@ -16,243 +16,293 @@ global.localStorage = {
   clear: () => store.clear(),
 }
 
-// ----------------------------------------------------
-// TEST SUITE 1: Initial State & Protected Routes
-// ----------------------------------------------------
-console.log('--- Test Suite 1: Initial Login State & Protected Route Logic ---')
-{
-  localStorage.clear()
-  const initialUser = authService.getCurrentUser()
-  assert.strictEqual(initialUser, null, 'Initial user MUST be null')
-  const initialLoggedIn = localStorage.getItem('skillswap_is_logged_in') === 'true'
-  assert.strictEqual(initialLoggedIn, false, 'Initial state MUST be logged out')
+async function runTests() {
+  const timestamp = Date.now()
+  const user1Email = `alex_${timestamp}@test.edu`
+  const user2Email = `ananya_${timestamp}@test.edu`
 
-  // Protected route simulation matching App.jsx routing configuration
-  function checkRoute(path, isLoggedIn) {
-    const isProtected = ['/dashboard', '/profile', '/requests'].includes(path)
-    if (isProtected && !isLoggedIn) return { redirect: '/login' }
-    return { render: path }
-  }
+  // ----------------------------------------------------
+  // TEST SUITE 1: Initial State & Protected Routes
+  // ----------------------------------------------------
+  console.log('--- Test Suite 1: Initial Login State & Protected Route Logic ---')
+  {
+    localStorage.clear()
+    const initialUser = authService.getCurrentUser()
+    assert.strictEqual(initialUser, null, 'Initial user MUST be null')
+    const initialLoggedIn = localStorage.getItem('skillswap_is_logged_in') === 'true'
+    assert.strictEqual(initialLoggedIn, false, 'Initial state MUST be logged out')
 
-  assert.deepStrictEqual(checkRoute('/dashboard', false), { redirect: '/login' })
-  assert.deepStrictEqual(checkRoute('/profile', false), { redirect: '/login' })
-  assert.deepStrictEqual(checkRoute('/requests', false), { redirect: '/login' })
-  assert.deepStrictEqual(checkRoute('/explore', false), { render: '/explore' }) // public exploration
-  assert.deepStrictEqual(checkRoute('/dashboard', true), { render: '/dashboard' })
-  assert.deepStrictEqual(checkRoute('/profile', true), { render: '/profile' })
-  assert.deepStrictEqual(checkRoute('/requests', true), { render: '/requests' })
-  console.log('✅ Passed: Initial state is logged out and protected routes redirect properly.')
-}
-
-// ----------------------------------------------------
-// TEST SUITE 2: Signup & Validation
-// ----------------------------------------------------
-console.log('\n--- Test Suite 2: Signup & Validation ---')
-{
-  localStorage.clear()
-  const users = authService.getUsers()
-  assert.ok(users.length > 0, 'Default demo users should be initialized')
-
-  function validateSignup(name, email, password, existingUsers) {
-    const errs = {}
-    if (!name.trim()) errs.name = 'Full name is required'
-    else if (name.trim().length < 2) errs.name = 'Name must be at least 2 characters long'
-
-    if (!email.trim()) errs.email = 'Email address is required'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = 'Please enter a valid email address'
-
-    if (!password) errs.password = 'Password is required'
-    else if (password.length < 6) errs.password = 'Password must be at least 6 characters long'
-
-    if (existingUsers.some(u => u.email.toLowerCase() === email.trim().toLowerCase())) {
-      errs.form = 'An account with this email already exists. Please log in instead.'
+    function checkRoute(path, isLoggedIn) {
+      const isProtected = ['/dashboard', '/profile', '/requests'].includes(path)
+      if (isProtected && !isLoggedIn) return { redirect: '/login' }
+      return { render: path }
     }
-    return errs
+
+    assert.deepStrictEqual(checkRoute('/dashboard', false), { redirect: '/login' })
+    assert.deepStrictEqual(checkRoute('/profile', false), { redirect: '/login' })
+    assert.deepStrictEqual(checkRoute('/requests', false), { redirect: '/login' })
+    assert.deepStrictEqual(checkRoute('/explore', false), { render: '/explore' })
+    assert.deepStrictEqual(checkRoute('/dashboard', true), { render: '/dashboard' })
+    assert.deepStrictEqual(checkRoute('/profile', true), { render: '/profile' })
+    assert.deepStrictEqual(checkRoute('/requests', true), { render: '/requests' })
+    console.log('✅ Passed: Initial state is logged out and protected routes redirect properly.')
   }
 
-  // Test empty inputs
-  const errs1 = validateSignup('', '', '', users)
-  assert.ok(errs1.name && errs1.email && errs1.password, 'All fields should show required error')
+  // ----------------------------------------------------
+  // TEST SUITE 2: Signup & Validation via Real Backend
+  // ----------------------------------------------------
+  console.log('\n--- Test Suite 2: Real API Signup & Client Validation ---')
+  {
+    localStorage.clear()
 
-  // Test short password
-  const errs2 = validateSignup('Test User', 'test@test.edu', '123', users)
-  assert.ok(errs2.password, 'Should require password >= 6 characters')
+    function validateSignup(name, email, password) {
+      const errs = {}
+      if (!name.trim()) errs.name = 'Full name is required'
+      else if (name.trim().length < 2) errs.name = 'Name must be at least 2 characters long'
 
-  // Test duplicate email
-  const errs3 = validateSignup('Fake Alex', 'alex@skillswap.io', 'password123', users)
-  assert.ok(errs3.form.includes('already exists'), 'Duplicate email should be caught')
+      if (!email.trim()) errs.email = 'Email address is required'
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errs.email = 'Please enter a valid email address'
 
-  // Test valid signup
-  const signupRes = authService.signup('Maya Lin', 'maya@mit.edu', 'password123')
-  assert.strictEqual(signupRes.success, true, 'Valid signup should succeed')
-  assert.strictEqual(signupRes.user.name, 'Maya Lin')
+      if (!password) errs.password = 'Password is required'
+      else if (password.length < 6) errs.password = 'Password must be at least 6 characters long'
+      return errs
+    }
 
-  // Verify persistence in localStorage
-  assert.strictEqual(localStorage.getItem('skillswap_is_logged_in'), 'true')
-  assert.strictEqual(authService.getCurrentUser().email, 'maya@mit.edu')
-  console.log('✅ Passed: Signup validation and account creation verified.')
-}
+    // Client-side validations
+    const errs1 = validateSignup('', '', '')
+    assert.ok(errs1.name && errs1.email && errs1.password, 'All fields should show required error')
 
-// ----------------------------------------------------
-// TEST SUITE 3: Login & Logout
-// ----------------------------------------------------
-console.log('\n--- Test Suite 3: Login & Logout ---')
-{
-  // Non-existent email
-  const fail1 = authService.login('unknown@school.edu', 'password123')
-  assert.strictEqual(fail1.success, false)
+    const errs2 = validateSignup('Test', 'test@test.edu', '123')
+    assert.ok(errs2.password, 'Should require password >= 6 characters')
 
-  // Wrong password
-  const fail2 = authService.login('alex@skillswap.io', 'wrongpass')
-  assert.strictEqual(fail2.success, false)
+    // 1. Sign up User 1 (Alex)
+    const res1 = await authService.signup('Alex Johnson', user1Email, 'password123')
+    assert.strictEqual(res1.success, true, `Signup User 1 failed: ${res1.message}`)
+    assert.strictEqual(res1.user.name, 'Alex Johnson')
+    assert.ok(res1.user.id, 'User 1 should have an id')
+    assert.ok(getToken(), 'JWT token must be set in localStorage')
+    assert.strictEqual(localStorage.getItem('skillswap_is_logged_in'), 'true')
 
-  // Successful login as Alex Johnson (Demo User 1)
-  const success1 = authService.login('alex@skillswap.io', 'password123')
-  assert.strictEqual(success1.success, true)
-  assert.strictEqual(success1.user.name, 'Alex Johnson')
+    // 2. Duplicate signup should be rejected by backend
+    const dupRes = await authService.signup('Alex Duplicate', user1Email, 'password123')
+    assert.strictEqual(dupRes.success, false, 'Duplicate email must be rejected')
+    assert.ok(dupRes.message.includes('already exists'), 'Duplicate email error message expected')
 
-  // Quick Demo Login as Ananya Sharma (Demo User 2)
-  const success2 = authService.loginAsDemo(1)
-  assert.strictEqual(success2.success, true)
-  assert.strictEqual(success2.user.name, 'Ananya Sharma')
+    // 3. Sign up User 2 (Ananya)
+    const res2 = await authService.signup('Ananya Sharma', user2Email, 'password123')
+    assert.strictEqual(res2.success, true, `Signup User 2 failed: ${res2.message}`)
+    assert.strictEqual(res2.user.name, 'Ananya Sharma')
+    assert.ok(res2.user.id, 'User 2 should have an id')
 
-  // Logout
-  authService.logout()
-  assert.strictEqual(localStorage.getItem('skillswap_is_logged_in'), 'false')
-  assert.strictEqual(authService.getCurrentUser(), null)
-  console.log('✅ Passed: Login credential verification, demo accounts, and logout verified.')
-}
+    console.log('✅ Passed: Real API Signup, validation, duplicate prevention, and JWT storage verified.')
+  }
 
-// ----------------------------------------------------
-// TEST SUITE 4: Profile Editing & Persistence
-// ----------------------------------------------------
-console.log('\n--- Test Suite 4: Profile Editing & Persistence ---')
-{
-  authService.loginAsDemo(0) // Alex Johnson
-  const currentUser = authService.getCurrentUser()
+  // ----------------------------------------------------
+  // TEST SUITE 3: Real API Login, Token Auth & Logout
+  // ----------------------------------------------------
+  console.log('\n--- Test Suite 3: Real API Login & Token Auth ---')
+  {
+    // Unknown email
+    const fail1 = await authService.login('nobody@nowhere.edu', 'password123')
+    assert.strictEqual(fail1.success, false, 'Unknown email should fail')
 
-  // Update bio and university
-  authService.updateProfile(currentUser, {
-    university: 'Stanford Graduate School',
-    bio: 'Updated bio testing live persistence across reload.',
-    skillsOffered: [...currentUser.skillsOffered, 'GraphQL'],
-  })
+    // Wrong password
+    const fail2 = await authService.login(user1Email, 'wrongpassword')
+    assert.strictEqual(fail2.success, false, 'Wrong password should fail')
 
-  // Verify updated state and persistence
-  const loadedUser = authService.getCurrentUser()
-  assert.strictEqual(loadedUser.university, 'Stanford Graduate School')
-  assert.ok(loadedUser.skillsOffered.includes('GraphQL'))
-  console.log('✅ Passed: Profile editing, skills management, and localStorage persistence verified.')
-}
+    // Successful login User 1
+    const loginRes = await authService.login(user1Email, 'password123')
+    assert.strictEqual(loginRes.success, true)
+    assert.strictEqual(loginRes.user.name, 'Alex Johnson')
+    assert.ok(getToken(), 'Token should be stored upon login')
 
-// ----------------------------------------------------
-// TEST SUITE 5: Two Demo Users Exchange Flow
-// ----------------------------------------------------
-console.log('\n--- Test Suite 5: Two Demo Users Exchange Requests Flow ---')
-{
-  localStorage.removeItem('skillswap_requests')
-  const userAlex = { ...initialAlex, id: 0 }
-  const userAnanya = mockStudents.find(s => s.id === 1) // id: 1
+    // Verify GET /auth/me
+    const meUser = await authService.fetchCurrentUser()
+    assert.ok(meUser, 'GET /auth/me should return user with valid token')
+    assert.strictEqual(meUser.email, user1Email)
 
-  // 1. Alex sends exchange request to Ananya
-  const sendRes = exchangeService.createRequest(userAlex, userAnanya, 'React', 'Machine Learning', 'Excited to swap!')
-  assert.strictEqual(sendRes.success, true, 'Request should be sent successfully')
-  const newReqId = sendRes.request.id
+    // Logout
+    authService.logout()
+    assert.strictEqual(getToken(), null, 'Token must be cleared on logout')
+    assert.strictEqual(localStorage.getItem('skillswap_is_logged_in'), 'false')
+    assert.strictEqual(authService.getCurrentUser(), null)
 
-  // 2. Prevent duplicate request
-  const dupRes = exchangeService.createRequest(userAlex, userAnanya, 'React', 'Machine Learning')
-  assert.strictEqual(dupRes.success, false, 'Duplicate request MUST be prevented')
+    console.log('✅ Passed: Login credential verification, GET /auth/me, and logout verified.')
+  }
 
-  // 3. Verify Alex sees it under SENT requests
-  const allReqs = exchangeService.getRequests()
-  const alexSent = allReqs.filter(r => r.fromId === userAlex.id)
-  assert.ok(alexSent.some(r => r.id === newReqId), 'Alex should see request in Sent Requests')
+  // ----------------------------------------------------
+  // TEST SUITE 4: Profile Editing & Persistence via Backend
+  // ----------------------------------------------------
+  console.log('\n--- Test Suite 4: Profile Editing & Persistence via Backend ---')
+  let user1Data = null
+  let user2Data = null
+  {
+    // Log in User 1
+    const login1 = await authService.login(user1Email, 'password123')
+    assert.strictEqual(login1.success, true)
+    user1Data = login1.user
 
-  // 4. Verify Ananya sees it under RECEIVED requests
-  const ananyaReceived = allReqs.filter(r => r.toId === userAnanya.id)
-  const reqForAnanya = ananyaReceived.find(r => r.id === newReqId)
-  assert.ok(reqForAnanya, 'Ananya MUST see request in Received Requests')
-  assert.strictEqual(reqForAnanya.status, 'pending')
-
-  // 5. Ananya accepts the request
-  const acceptRes = exchangeService.updateStatus(newReqId, 'accepted')
-  assert.strictEqual(acceptRes.success, true)
-
-  // 6. Verify status updated immediately for both
-  const updatedReqs = exchangeService.getRequests()
-  const updatedReq = updatedReqs.find(r => r.id === newReqId)
-  assert.strictEqual(updatedReq.status, 'accepted')
-
-  // 7. Verify reject action
-  const sendRes2 = exchangeService.createRequest(userAlex, mockStudents.find(s => s.id === 8), 'Docker', 'AWS')
-  exchangeService.updateStatus(sendRes2.request.id, 'rejected')
-  const rejectedReq = exchangeService.getRequests().find(r => r.id === sendRes2.request.id)
-  assert.strictEqual(rejectedReq.status, 'rejected')
-
-  console.log('✅ Passed: Complete Send -> Receive -> Accept -> Reject workflow verified between two demo users.')
-}
-
-// ----------------------------------------------------
-// TEST SUITE 6: Dashboard Statistics Synchronization
-// ----------------------------------------------------
-console.log('\n--- Test Suite 6: Dashboard Stats Calculation ---')
-{
-  const testUser = { id: 0, rating: 4.8, exchanges: 1 }
-  const testRequests = [
-    { fromId: 3, toId: 0, status: 'pending' },
-    { fromId: 4, toId: 0, status: 'pending' },
-    { fromId: 0, toId: 1, status: 'accepted' },
-    { fromId: 7, toId: 0, status: 'accepted' },
-    { fromId: 0, toId: 5, status: 'rejected' },
-  ]
-
-  const pendingReceivedCount = testRequests.filter(r => r.toId === testUser.id && r.status === 'pending').length
-  assert.strictEqual(pendingReceivedCount, 2, 'Pending received count should be 2')
-
-  const acceptedExchangesCount = testRequests.filter(r => (r.fromId === testUser.id || r.toId === testUser.id) && r.status === 'accepted').length
-  assert.strictEqual(acceptedExchangesCount, 2, 'Accepted exchanges count should be 2')
-
-  const displayRating = Number(testUser.rating).toFixed(1)
-  assert.strictEqual(displayRating, '4.8', 'Rating should reflect actual mock profile data')
-
-  console.log('✅ Passed: Dashboard statistics synchronize directly with application data.')
-}
-
-// ----------------------------------------------------
-// TEST SUITE 7: Search and Filter Logic
-// ----------------------------------------------------
-console.log('\n--- Test Suite 7: Explore Search & Filter Logic ---')
-{
-  const allStudents = studentService.getStudents()
-
-  function filterStudents(list, search, category) {
-    const sLower = search.toLowerCase()
-    return list.filter(student => {
-      const matchesCategory = category === 'All' || student.category === category
-      const matchesSearch =
-        !search ||
-        student.name?.toLowerCase().includes(sLower) ||
-        student.skillsOffered?.some(s => s.toLowerCase().includes(sLower)) ||
-        student.skillsWanted?.some(s => s.toLowerCase().includes(sLower)) ||
-        student.university?.toLowerCase().includes(sLower)
-      return matchesCategory && matchesSearch
+    // Update profile via PUT /api/users/profile
+    const updateRes = await authService.updateProfile({
+      university: 'Stanford University',
+      bio: 'Enthusiastic CS student eager to exchange web dev for ML.',
+      skillsOffered: ['React', 'JavaScript', 'Node.js'],
+      skillsWanted: ['Machine Learning', 'Python'],
+      category: 'Technology',
     })
+    assert.strictEqual(updateRes.success, true)
+    assert.strictEqual(updateRes.user.university, 'Stanford University')
+    assert.ok(updateRes.user.skillsOffered.includes('React'))
+    assert.ok(!('password' in updateRes.user), 'Password must never be returned')
+    assert.ok(!('hashed_password' in updateRes.user), 'Hashed password must never be returned')
+    user1Data = updateRes.user
+
+    // Log in User 2 to update profile
+    const login2 = await authService.login(user2Email, 'password123')
+    assert.strictEqual(login2.success, true)
+    const updateRes2 = await authService.updateProfile({
+      university: 'IIT Delhi',
+      bio: 'Data science enthusiast teaching Python and AI.',
+      skillsOffered: ['Machine Learning', 'Python', 'PyTorch'],
+      skillsWanted: ['React', 'UI Design'],
+      category: 'Technology',
+    })
+    assert.strictEqual(updateRes2.success, true)
+    user2Data = updateRes2.user
+
+    console.log('✅ Passed: Profile editing and database persistence verified.')
   }
 
-  // Filter by category Technology
-  const techStudents = filterStudents(allStudents, '', 'Technology')
-  assert.ok(techStudents.every(s => s.category === 'Technology'))
+  // ----------------------------------------------------
+  // TEST SUITE 5: Student Directory & Search / Filter
+  // ----------------------------------------------------
+  console.log('\n--- Test Suite 5: Student Directory & Search / Filter ---')
+  {
+    const students = await studentService.getStudents()
+    assert.ok(Array.isArray(students), 'getStudents must return an array')
+    assert.ok(students.length >= 2, 'Should have at least the 2 registered students')
 
-  // Search by skill 'Figma'
-  const figmaStudents = filterStudents(allStudents, 'Figma', 'All')
-  assert.ok(figmaStudents.length > 0)
-  assert.ok(figmaStudents.every(s => s.skillsOffered.includes('Figma') || s.skillsWanted.includes('Figma')))
+    // Search by name
+    const searchRes = await studentService.getStudents({ search: 'Alex' })
+    assert.ok(searchRes.some(s => s.name.includes('Alex')), 'Search should find Alex')
 
-  // Search by University 'IIT'
-  const iitStudents = filterStudents(allStudents, 'IIT', 'All')
-  assert.ok(iitStudents.length >= 1)
+    // Filter by category
+    const techRes = await studentService.getStudents({ category: 'Technology' })
+    assert.ok(techRes.length >= 2, 'Category filter should return tech students')
 
-  console.log('✅ Passed: Search and category filters verified.')
+    console.log('✅ Passed: Student directory listing, search, and category filtering verified.')
+  }
+
+  // ----------------------------------------------------
+  // TEST SUITE 6: Complete Two-User Exchange Workflow
+  // ----------------------------------------------------
+  console.log('\n--- Test Suite 6: Complete Two-User Exchange Workflow ---')
+  {
+    // Step 1: User 1 logs in
+    await authService.login(user1Email, 'password123')
+
+    // Step 2: User 1 tries self-request -> should fail
+    const selfRes = await exchangeService.createRequest(user1Data.id, 'React', 'Machine Learning')
+    assert.strictEqual(selfRes.success, false, 'Self-request must be rejected')
+
+    // Step 3: User 1 sends exchange request to User 2
+    const createRes = await exchangeService.createRequest(
+      user2Data.id,
+      'React',
+      'Machine Learning',
+      'Hi Ananya, would love to exchange React for ML!'
+    )
+    assert.strictEqual(createRes.success, true, `Send request failed: ${createRes.error}`)
+    const exchangeId = createRes.request.id
+    assert.ok(exchangeId, 'Exchange request must have an ID')
+    assert.strictEqual(createRes.request.status, 'pending')
+    assert.strictEqual(createRes.request.fromId, user1Data.id)
+    assert.strictEqual(createRes.request.toId, user2Data.id)
+    assert.strictEqual(createRes.request.from.name, 'Alex Johnson')
+    assert.strictEqual(createRes.request.to.name, 'Ananya Sharma')
+
+    // Step 4: Duplicate pending request should fail
+    const dupExchange = await exchangeService.createRequest(user2Data.id, 'React', 'Machine Learning')
+    assert.strictEqual(dupExchange.success, false, 'Duplicate pending request must be rejected')
+
+    // Step 5: User 1 lists exchanges -> should see the sent request
+    const user1Exchanges = await exchangeService.getRequests()
+    assert.ok(user1Exchanges.some(e => e.id === exchangeId && e.fromId === user1Data.id))
+
+    // Step 6: User 2 logs in
+    await authService.login(user2Email, 'password123')
+
+    // Step 7: User 2 lists exchanges -> should see the received request
+    const user2Exchanges = await exchangeService.getRequests()
+    const receivedReq = user2Exchanges.find(e => e.id === exchangeId)
+    assert.ok(receivedReq, 'User 2 must see the incoming request')
+    assert.strictEqual(receivedReq.status, 'pending')
+
+    // Step 8: Sender (User 1) trying to accept should be forbidden (403)
+    // Switch to User 1 token temporarily to test authorization
+    await authService.login(user1Email, 'password123')
+    const unauthorizedAccept = await exchangeService.updateStatus(exchangeId, 'accepted')
+    assert.strictEqual(unauthorizedAccept.success, false, 'Sender must NOT be allowed to accept')
+
+    // Step 9: Receiver (User 2) accepts the request
+    await authService.login(user2Email, 'password123')
+    const acceptRes = await exchangeService.updateStatus(exchangeId, 'accepted')
+    assert.strictEqual(acceptRes.success, true, `Accept failed: ${acceptRes.error}`)
+    assert.strictEqual(acceptRes.updatedRequest.status, 'accepted')
+
+    // Step 10: Double status update should be rejected
+    const doubleUpdate = await exchangeService.updateStatus(exchangeId, 'rejected')
+    assert.strictEqual(doubleUpdate.success, false, 'Double update must be rejected')
+
+    // Step 11: Test reject workflow with a second proposal
+    const createRes2 = await exchangeService.createRequest(
+      user1Data.id,
+      'Python',
+      'JavaScript',
+      'Another proposal to test rejection.'
+    )
+    assert.strictEqual(createRes2.success, true)
+    const exchangeId2 = createRes2.request.id
+
+    // User 1 logs in and rejects it
+    await authService.login(user1Email, 'password123')
+    const rejectRes = await exchangeService.updateStatus(exchangeId2, 'rejected')
+    assert.strictEqual(rejectRes.success, true)
+    assert.strictEqual(rejectRes.updatedRequest.status, 'rejected')
+
+    console.log('✅ Passed: Complete Send -> Duplicate Guard -> Self-Request Guard -> Auth Check -> Accept -> Reject workflow verified!')
+  }
+
+  // ----------------------------------------------------
+  // TEST SUITE 7: Dashboard Stats Calculation Logic
+  // ----------------------------------------------------
+  console.log('\n--- Test Suite 7: Dashboard Stats Calculation Logic ---')
+  {
+    const testUser = { id: 'u1', rating: 4.9, exchanges: 2 }
+    const testRequests = [
+      { fromId: 'u2', toId: 'u1', status: 'pending' },
+      { fromId: 'u3', toId: 'u1', status: 'pending' },
+      { fromId: 'u1', toId: 'u4', status: 'accepted' },
+      { fromId: 'u5', toId: 'u1', status: 'accepted' },
+      { fromId: 'u1', toId: 'u6', status: 'rejected' },
+    ]
+
+    const pendingReceivedCount = testRequests.filter(r => r.toId === testUser.id && r.status === 'pending').length
+    assert.strictEqual(pendingReceivedCount, 2, 'Pending received count should be 2')
+
+    const acceptedExchangesCount = testRequests.filter(r => (r.fromId === testUser.id || r.toId === testUser.id) && r.status === 'accepted').length
+    assert.strictEqual(acceptedExchangesCount, 2, 'Accepted exchanges count should be 2')
+
+    const totalExchanges = Math.max(testUser.exchanges || 0, acceptedExchangesCount)
+    assert.strictEqual(totalExchanges, 2)
+
+    console.log('✅ Passed: Dashboard statistics synchronize directly with application data.')
+  }
+
+  console.log('\n🎉 ALL 7 SYSTEM & API TEST SUITES PASSED WITH ZERO FAILURES!')
 }
 
-console.log('\n🎉 ALL 7 TEST SUITES PASSED WITH ZERO FAILURES!')
+runTests().catch((err) => {
+  console.error('\n❌ Test failed with error:', err)
+  process.exit(1)
+})

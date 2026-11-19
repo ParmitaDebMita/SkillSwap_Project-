@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../hooks/useData'
 import { useAuth } from '../hooks/useAuth'
@@ -6,10 +6,15 @@ import RequestCard from '../components/RequestCard'
 import './Requests.css'
 
 export default function Requests() {
-  const { requests } = useData()
+  const { requests, requestsLoading, loadRequests } = useData()
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState('received') // 'received' or 'sent'
-  const [statusFilter, setStatusFilter] = useState('all') // 'all', 'pending', 'accepted', 'rejected'
+  const [activeTab, setActiveTab] = useState('received')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Refresh exchanges when this page mounts
+  useEffect(() => {
+    loadRequests()
+  }, [loadRequests])
 
   // Filter requests dynamically based on currently logged-in user
   const receivedRequests = requests.filter(
@@ -82,30 +87,40 @@ export default function Requests() {
           ))}
         </div>
 
-        {/* Requests List */}
-        {filteredRequests.length > 0 ? (
-          <div className="requests-grid animate-fade-in">
-            {filteredRequests.map(req => (
-              <RequestCard key={req.id} request={req} />
-            ))}
-          </div>
-        ) : (
+        {/* Loading State */}
+        {requestsLoading && (
           <div className="requests-empty">
-            <span className="empty-icon">
-              {activeTab === 'received' ? '📭' : '🚀'}
-            </span>
-            <h3>
-              No {statusFilter !== 'all' ? statusFilter : ''} {activeTab} requests found
-            </h3>
-            <p>
-              {activeTab === 'received'
-                ? 'When another student invites you to a skill exchange, their proposal will appear here for you to accept or decline.'
-                : 'Browse student profiles in Explore Skills and send an exchange proposal to learn something new!'}
-            </p>
-            <Link to="/explore" className="btn btn-outline btn-sm">
-              Explore Skills Now
-            </Link>
+            <span className="empty-icon">⏳</span>
+            <h3>Loading requests…</h3>
           </div>
+        )}
+
+        {/* Requests List */}
+        {!requestsLoading && (
+          filteredRequests.length > 0 ? (
+            <div className="requests-grid animate-fade-in">
+              {filteredRequests.map(req => (
+                <RequestCard key={req.id} request={req} />
+              ))}
+            </div>
+          ) : (
+            <div className="requests-empty">
+              <span className="empty-icon">
+                {activeTab === 'received' ? '📭' : '🚀'}
+              </span>
+              <h3>
+                No {statusFilter !== 'all' ? statusFilter : ''} {activeTab} requests found
+              </h3>
+              <p>
+                {activeTab === 'received'
+                  ? 'When another student invites you to a skill exchange, their proposal will appear here for you to accept or decline.'
+                  : 'Browse student profiles in Explore Skills and send an exchange proposal to learn something new!'}
+              </p>
+              <Link to="/explore" className="btn btn-outline btn-sm">
+                Explore Skills Now
+              </Link>
+            </div>
+          )
         )}
       </div>
     </div>

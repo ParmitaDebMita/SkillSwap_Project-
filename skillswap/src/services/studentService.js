@@ -1,25 +1,28 @@
-import { safeGetStorage, safeSetStorage } from './apiClient.js'
-import { students as initialStudents } from '../data/mockData.js'
+/**
+ * SkillSwap Student Service — Real FastAPI Backend
+ *
+ * GET /api/students?search=&category=&page=1&limit=50
+ */
+
+import { apiRequest } from './apiClient.js'
 
 export const studentService = {
   /**
-   * Get all students directory
-   * (Ready for FastAPI: GET /api/students)
+   * Fetch students from the backend with optional search/filter params.
+   * Returns an array of student objects (no password field).
    */
-  getStudents() {
-    const stored = safeGetStorage('skillswap_students', null)
-    if (Array.isArray(stored) && stored.length > 0) {
-      return stored
-    }
-    safeSetStorage('skillswap_students', initialStudents)
-    return initialStudents
-  },
+  async getStudents({ search = '', category = '', page = 1, limit = 50 } = {}) {
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    if (category && category !== 'All') params.set('category', category)
+    params.set('page', String(page))
+    params.set('limit', String(limit))
 
-  /**
-   * Save updated students list
-   */
-  saveStudents(students) {
-    safeSetStorage('skillswap_students', students)
-    return students
+    const res = await apiRequest(`/students?${params.toString()}`)
+    if (!res.success) {
+      console.error('[studentService] Failed to fetch students:', res.error)
+      return []
+    }
+    return res.data
   },
 }

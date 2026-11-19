@@ -1,84 +1,120 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { DataContext } from './contexts'
 import { studentService } from '../services/studentService'
 import { exchangeService } from '../services/exchangeService'
 import { useAuth } from '../hooks/useAuth'
 
 export function DataProvider({ children }) {
-  const { user, updateProfile } = useAuth()
+  const { user, isLoggedIn, authLoading } = useAuth()
 
-  // Base students directory
-  const [baseStudents, setBaseStudents] = useState(() => studentService.getStudents())
+  // ── Students state ────────────────────────────────────────────────────────
+  const [students, setStudents] = useState([])
+  const [studentsLoading, setStudentsLoading] = useState(true)
+  const [studentsError, setStudentsError] = useState(null)
 
-  // Exchange proposals
-  const [requests, setRequests] = useState(() => exchangeService.getRequests())
+  // ── Exchanges state ───────────────────────────────────────────────────────
+  const [requests, setRequests] = useState([])
+  const [requestsLoading, setRequestsLoading] = useState(false)
 
-  // Save students whenever base students change
+  // ── Load students on mount ────────────────────────────────────────────────
   useEffect(() => {
-    studentService.saveStudents(baseStudents)
-  }, [baseStudents])
+    let cancelled = false
 
-  // Dynamically merge currently logged in user profile with student directory
-  const students = useMemo(() => {
-    const list = [...baseStudents]
-    if (user) {
-      const idx = list.findIndex(s => s.id === user.id)
-      if (idx !== -1) {
-        list[idx] = { ...list[idx], ...user }
-      }
-    }
-    return list
-  }, [baseStudents, user])
-
-  // Send an exchange request
-  const sendRequest = (studentId, skillOffered, skillWanted, message = '') => {
-    const target = students.find(s => s.id === studentId)
-    if (!target) {
-      return { success: false, error: 'Selected student was not found.' }
-    }
-
-    const res = exchangeService.createRequest(user, target, skillOffered, skillWanted, message)
-    if (res.success) {
-      setRequests(res.requests)
-    }
-    return res
-  }
-
-  // Accept or reject a proposal
-  const updateRequestStatus = (requestId, newStatus) => {
-    const res = exchangeService.updateStatus(requestId, newStatus)
-    if (res.success) {
-      setRequests(res.requests)
-
-      // If accepted, increment exchanges count for both students
-      if (newStatus === 'accepted' && res.updatedRequest) {
-        const p1Id = res.updatedRequest.fromId ?? res.updatedRequest.from?.id
-        const p2Id = res.updatedRequest.toId ?? res.updatedRequest.to?.id
-
-        setBaseStudents(prev =>
-          prev.map(s => {
-            if (s.id === p1Id || s.id === p2Id) {
-              return { ...s, exchanges: (s.exchanges || 0) + 1 }
-            }
-            return s
-          })
-        )
-
-        if (user && (user.id === p1Id || user.id === p2Id)) {
-          updateProfile({ exchanges: (user.exchanges || 0) + 1 })
+    async function loadStudents() {
+      setStudentsLoading(true)
+      setStudentsError(null)
+      const data = await studentService.getStudents()
+      if (!cancelled) {
+        setStudents(data)
+        setStudentsLoading(false)
+        if (data.length === 0) {
+          setStudentsError('No students found. The backend may be unavailable.')
         }
       }
     }
-    return res.success
-  }
+
+    loadStudents()
+    return () => { cancelled = true }
+  }, [])
+
+  // ── Load exchanges when user logs in ─────────────────────────────────────
+  const loadRequests = useCallback(async () => {
+    if (!isLoggedIn) {
+      setRequests([])
+      return
+    }
+    setRequestsLoading(true)
+    const data = await exchangeService.getRequests()
+    setRequests(data)
+    setRequestsLoading(false)
+  }, [isLoggedIn])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!authLoading && isLoggedIn) {
+      exchangeService.getRequests().then(data => {
+        if (!cancelled) {
+          setRequests(data)
+        }
+      })
+    } else if (!isLoggedIn) {
+      Promise.resolve().then(() => {
+        if (!cancelled) {
+          setRequests([])
+        }
+      })
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [authLoading, isLoggedIn])
+
+  // ── Send exchange request ─────────────────────────────────────────────────
+  /**
+   * studentId: the backend string id of the target student
+   */
+  const sendRequest = useCallback(async (studentId, skillOffered, skillWanted, message = '') => {
+    if (!user) return { success: false, error: 'You must be logged in to send a request.' }
+
+    const res = await exchangeService.createRequest(studentId, skillOffered, skillWanted, message)
+    if (res.success) {
+      // Optimistically prepend the new request
+      setRequests(prev => [res.request, ...prev])
+    }
+    return res
+  }, [user])
+
+  // ── Accept / reject request ───────────────────────────────────────────────
+  const updateRequestStatus = useCallback(async (requestId, newStatus) => {
+    const res = await exchangeService.updateStatus(requestId, newStatus)
+    if (res.success) {
+      setRequests(prev =>
+        prev.map(r => r.id === requestId ? { ...r, status: newStatus } : r)
+      )
+      return true
+    }
+    console.error('[DataContext] updateRequestStatus failed:', res.error)
+    return false
+  }, [])
+
+  // ── Reload students (e.g. after profile update) ───────────────────────────
+  const reloadStudents = useCallback(async () => {
+    const data = await studentService.getStudents()
+    setStudents(data)
+  }, [])
 
   return (
     <DataContext.Provider
       value={{
         students,
+        studentsLoading,
+        studentsError,
         requests,
+        requestsLoading,
         sendRequest,
         updateRequestStatus,
+        reloadStudents,
+        loadRequests,
       }}
     >
       {children}

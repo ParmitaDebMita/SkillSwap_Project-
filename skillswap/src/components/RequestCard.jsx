@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useData } from '../hooks/useData'
 import { useAuth } from '../hooks/useAuth'
 import './RequestCard.css'
@@ -5,6 +6,7 @@ import './RequestCard.css'
 export default function RequestCard({ request }) {
   const { updateRequestStatus } = useData()
   const { user } = useAuth()
+  const [updating, setUpdating] = useState(false)
 
   // Determine if this request was received by the current user or sent by them
   const isReceived = request.toId === user?.id || request.to?.id === user?.id
@@ -16,12 +18,16 @@ export default function RequestCard({ request }) {
     rejected: 'badge-danger',
   }
 
-  const handleAccept = () => {
-    updateRequestStatus(request.id, 'accepted')
+  const handleAccept = async () => {
+    setUpdating(true)
+    await updateRequestStatus(request.id, 'accepted')
+    setUpdating(false)
   }
 
-  const handleReject = () => {
-    updateRequestStatus(request.id, 'rejected')
+  const handleReject = async () => {
+    setUpdating(true)
+    await updateRequestStatus(request.id, 'rejected')
+    setUpdating(false)
   }
 
   return (
@@ -59,26 +65,27 @@ export default function RequestCard({ request }) {
           <button
             className="btn btn-accent btn-sm"
             onClick={handleAccept}
+            disabled={updating}
           >
-            ✓ Accept
+            {updating ? '⏳' : '✓ Accept'}
           </button>
           <button
             className="btn btn-secondary btn-sm"
             onClick={handleReject}
+            disabled={updating}
           >
-            ✕ Reject
+            {updating ? '⏳' : '✕ Reject'}
           </button>
         </div>
       )}
 
-      {/* Helper notice if accepted */}
+      {/* Status notices */}
       {request.status === 'accepted' && (
         <div className="request-status-notice notice-accepted">
           ✓ Exchange confirmed! Connect with {person?.name} to begin learning.
         </div>
       )}
 
-      {/* Helper notice if rejected */}
       {request.status === 'rejected' && (
         <div className="request-status-notice notice-rejected">
           ✕ This request was declined.

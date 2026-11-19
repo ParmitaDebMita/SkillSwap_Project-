@@ -6,14 +6,13 @@ import StudentCard from '../components/StudentCard'
 import './Explore.css'
 
 export default function Explore() {
-  const { students } = useData()
+  const { students, studentsLoading, studentsError } = useData()
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Single source of truth: URL query parameters
   const search = searchParams.get('search') || ''
   const activeCategory = searchParams.get('category') || 'All'
 
-  // Update URL params when user changes search
   const handleSearchChange = (val) => {
     const nextParams = new URLSearchParams(searchParams)
     if (val) {
@@ -24,7 +23,6 @@ export default function Explore() {
     setSearchParams(nextParams, { replace: true })
   }
 
-  // Update URL params when user selects a category
   const handleCategorySelect = (cat) => {
     const nextParams = new URLSearchParams(searchParams)
     if (cat !== 'All') {
@@ -35,12 +33,11 @@ export default function Explore() {
     setSearchParams(nextParams, { replace: true })
   }
 
-  // Reset all filters
   const handleClearFilters = () => {
     setSearchParams({}, { replace: true })
   }
 
-  // Filter students based on active search and category
+  // Client-side filtering on the loaded dataset
   const filtered = useMemo(() => {
     return students.filter(student => {
       const matchesCategory = activeCategory === 'All' || student.category === activeCategory
@@ -67,7 +64,7 @@ export default function Explore() {
             </p>
           </div>
           <div className="explore-count">
-            <span className="count-number">{filtered.length}</span>
+            <span className="count-number">{studentsLoading ? '…' : filtered.length}</span>
             <span className="count-label">students found</span>
           </div>
         </div>
@@ -82,6 +79,7 @@ export default function Explore() {
               placeholder="Search by name, skill, university, or interest..."
               value={search}
               onChange={e => handleSearchChange(e.target.value)}
+              disabled={studentsLoading}
             />
             {search && (
               <button
@@ -107,29 +105,49 @@ export default function Explore() {
           </div>
         </div>
 
-        {/* Results */}
-        {filtered.length > 0 ? (
-          <div className="explore-grid">
-            {filtered.map(student => (
-              <StudentCard key={student.id} student={student} />
-            ))}
-          </div>
-        ) : (
+        {/* Loading State */}
+        {studentsLoading && (
           <div className="explore-empty">
-            <span className="empty-icon">🔍</span>
-            <h3>No students found</h3>
-            <p>
-              {search
-                ? `No matching students found for "${search}". Try adjusting your keywords or clearing the category filter.`
-                : 'No students found in this category.'}
-            </p>
-            <button
-              className="btn btn-outline"
-              onClick={handleClearFilters}
-            >
-              Reset Filters
-            </button>
+            <span className="empty-icon">⏳</span>
+            <h3>Loading students…</h3>
+            <p>Fetching student profiles from the server.</p>
           </div>
+        )}
+
+        {/* Error State */}
+        {!studentsLoading && studentsError && (
+          <div className="explore-empty">
+            <span className="empty-icon">⚠️</span>
+            <h3>Could not load students</h3>
+            <p>{studentsError}</p>
+          </div>
+        )}
+
+        {/* Results */}
+        {!studentsLoading && !studentsError && (
+          filtered.length > 0 ? (
+            <div className="explore-grid">
+              {filtered.map(student => (
+                <StudentCard key={student.id} student={student} />
+              ))}
+            </div>
+          ) : (
+            <div className="explore-empty">
+              <span className="empty-icon">🔍</span>
+              <h3>No students found</h3>
+              <p>
+                {search
+                  ? `No matching students found for "${search}". Try adjusting your keywords or clearing the category filter.`
+                  : 'No students found in this category.'}
+              </p>
+              <button
+                className="btn btn-outline"
+                onClick={handleClearFilters}
+              >
+                Reset Filters
+              </button>
+            </div>
+          )
         )}
       </div>
     </div>

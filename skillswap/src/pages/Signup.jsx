@@ -8,6 +8,7 @@ export default function Signup() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
   const { signup } = useAuth()
   const navigate = useNavigate()
 
@@ -39,11 +40,16 @@ export default function Signup() {
     return Object.keys(errs).length === 0
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
 
-    const res = signup(name, email, password)
+    setSubmitting(true)
+    setErrors({})
+
+    const res = await signup(name, email, password)
+    setSubmitting(false)
+
     if (!res.success) {
       setErrors({ form: res.message })
       return
@@ -68,10 +74,6 @@ export default function Signup() {
             <h1 className="auth-title">Create Account</h1>
             <p className="auth-subtitle">Sign up to start exchanging skills</p>
 
-            <div className="demo-notice-banner">
-              <strong>ℹ️ Demo Mode:</strong> Accounts are safely stored in browser localStorage.
-            </div>
-
             {errors.form && (
               <div className="form-alert-error animate-fade-in">
                 ⚠️ {errors.form}
@@ -93,6 +95,7 @@ export default function Signup() {
                     }
                   }}
                   className={errors.name ? 'error' : ''}
+                  disabled={submitting}
                 />
                 {errors.name && <span className="form-error">{errors.name}</span>}
               </div>
@@ -111,6 +114,7 @@ export default function Signup() {
                     }
                   }}
                   className={errors.email ? 'error' : ''}
+                  disabled={submitting}
                 />
                 {errors.email && <span className="form-error">{errors.email}</span>}
               </div>
@@ -129,12 +133,18 @@ export default function Signup() {
                     }
                   }}
                   className={errors.password ? 'error' : ''}
+                  disabled={submitting}
                 />
                 {errors.password && <span className="form-error">{errors.password}</span>}
               </div>
 
-              <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-                Create Account
+              <button
+                type="submit"
+                className="btn btn-primary btn-lg"
+                style={{ width: '100%' }}
+                disabled={submitting}
+              >
+                {submitting ? '⏳ Creating account…' : 'Create Account'}
               </button>
             </form>
 

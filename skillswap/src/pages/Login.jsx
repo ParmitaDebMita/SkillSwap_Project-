@@ -7,7 +7,8 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errors, setErrors] = useState({})
-  const { login, loginAsDemo } = useAuth()
+  const [submitting, setSubmitting] = useState(false)
+  const { login } = useAuth()
   const navigate = useNavigate()
 
   const validate = () => {
@@ -31,27 +32,22 @@ export default function Login() {
     return Object.keys(errs).length === 0
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validate()) return
 
-    const res = login(email, password)
+    setSubmitting(true)
+    setErrors({})
+
+    const res = await login(email, password)
+    setSubmitting(false)
+
     if (!res.success) {
       setErrors({ form: res.message })
       return
     }
 
     navigate('/dashboard')
-  }
-
-  const handleQuickDemo = (demoId, demoEmail, demoPass) => {
-    setEmail(demoEmail)
-    setPassword(demoPass)
-    setErrors({})
-    const res = loginAsDemo(demoId)
-    if (res.success) {
-      navigate('/dashboard')
-    }
   }
 
   return (
@@ -70,10 +66,6 @@ export default function Login() {
             <h1 className="auth-title">Login</h1>
             <p className="auth-subtitle">Enter your credentials to access your account</p>
 
-            <div className="demo-notice-banner">
-              <strong>ℹ️ Demo Mode:</strong> Client-side simulated auth. Use any demo profile or sign up.
-            </div>
-
             {errors.form && (
               <div className="form-alert-error animate-fade-in">
                 ⚠️ {errors.form}
@@ -86,7 +78,7 @@ export default function Login() {
                 <input
                   id="email"
                   type="email"
-                  placeholder="e.g. alex@skillswap.io"
+                  placeholder="e.g. alex@university.edu"
                   value={email}
                   onChange={e => {
                     setEmail(e.target.value)
@@ -95,6 +87,7 @@ export default function Login() {
                     }
                   }}
                   className={errors.email ? 'error' : ''}
+                  disabled={submitting}
                 />
                 {errors.email && <span className="form-error">{errors.email}</span>}
               </div>
@@ -113,35 +106,20 @@ export default function Login() {
                     }
                   }}
                   className={errors.password ? 'error' : ''}
+                  disabled={submitting}
                 />
                 {errors.password && <span className="form-error">{errors.password}</span>}
               </div>
 
-              <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-                Sign In
+              <button
+                type="submit"
+                className="btn btn-primary btn-lg"
+                style={{ width: '100%' }}
+                disabled={submitting}
+              >
+                {submitting ? '⏳ Signing in…' : 'Sign In'}
               </button>
             </form>
-
-            {/* Quick Demo Switcher for fast evaluation */}
-            <div className="quick-demo-box">
-              <span className="quick-demo-title">⚡ Instant Demo Login:</span>
-              <div className="quick-demo-buttons">
-                <button
-                  type="button"
-                  className="quick-demo-btn"
-                  onClick={() => handleQuickDemo(0, 'alex@skillswap.io', 'password123')}
-                >
-                  🚀 User 1: Alex Johnson (Stanford)
-                </button>
-                <button
-                  type="button"
-                  className="quick-demo-btn"
-                  onClick={() => handleQuickDemo(1, 'ananya@iitd.ac.in', 'password123')}
-                >
-                  👩‍💻 User 2: Ananya Sharma (IIT Delhi)
-                </button>
-              </div>
-            </div>
 
             <p className="auth-switch">
               New to SkillSwap? <Link to="/signup">Create an account</Link>

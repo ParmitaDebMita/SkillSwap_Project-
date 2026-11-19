@@ -1,146 +1,119 @@
-import { safeGetStorage, safeSetStorage } from './apiClient.js'
-import { currentUser as defaultAlex, students as defaultStudents } from '../data/mockData.js'
+/**
+ * SkillSwap Auth Service — Real FastAPI Backend
+ *
+ * Replaces localStorage demo mode with real API calls.
+ * Endpoints:
+ *   POST /api/auth/signup  → { token, user }
+ *   POST /api/auth/login   → { token, user }
+ *   GET  /api/auth/me      → user object
+ *   PUT  /api/users/profile → updated user object
+ */
 
-const initialDemoUsers = [defaultAlex, ...defaultStudents]
+import { apiRequest, setToken, clearToken, safeGetStorage, safeSetStorage, safeRemoveStorage } from './apiClient.js'
+
+// ── Session persistence helpers ───────────────────────────────────────────────
+
+function persistUser(user) {
+  safeSetStorage('skillswap_current_user', user)
+  safeSetStorage('skillswap_is_logged_in', true)
+}
+
+function clearSession() {
+  clearToken()
+  safeRemoveStorage('skillswap_current_user')
+  safeSetStorage('skillswap_is_logged_in', false)
+}
+
+function getCachedUser() {
+  const isLoggedIn = safeGetStorage('skillswap_is_logged_in', false)
+  if (!isLoggedIn) return null
+  return safeGetStorage('skillswap_current_user', null)
+}
+
+// ── Auth Service ─────────────────────────────────────────────────────────────
 
 export const authService = {
   /**
-   * Get all registered users from storage (or seed default demo users)
-   */
-  getUsers() {
-    const stored = safeGetStorage('skillswap_users', null)
-    if (Array.isArray(stored) && stored.length > 0) {
-      return stored
-    }
-    safeSetStorage('skillswap_users', initialDemoUsers)
-    return initialDemoUsers
-  },
-
-  /**
-   * Get currently active session user
+   * Returns the cached user from the previous session (synchronous, for initial render).
+   * The real session is validated via GET /api/auth/me on mount.
    */
   getCurrentUser() {
-    const isLoggedIn = safeGetStorage('skillswap_is_logged_in', false)
-    if (!isLoggedIn) return null
-    return safeGetStorage('skillswap_current_user', null)
+    return getCachedUser()
   },
 
   /**
-   * Login with email and password
-   * (Ready for FastAPI: POST /api/auth/login)
+   * POST /api/auth/login → { token, user }
    */
-  login(email, password) {
-    const cleanEmail = email.trim().toLowerCase()
-    const cleanPassword = password.trim()
-    const users = this.getUsers()
+  async login(email, password) {
+    const res = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    })
 
-    const found = users.find(u => u.email.toLowerCase() === cleanEmail)
-    if (!found) {
-      return {
-        success: false,
-        message: 'No account found with this email. Please check your email or sign up.',
-      }
+    if (!res.success) {
+      return { success: false, message: res.error }
     }
 
-    if (found.password && cleanPassword !== found.password) {
-      return {
-        success: false,
-        message: 'Incorrect password. (Hint: Demo password is "password123")',
-      }
-    }
-
-    safeSetStorage('skillswap_is_logged_in', true)
-    safeSetStorage('skillswap_current_user', found)
-    return { success: true, user: found }
+    const { token, user } = res.data
+    setToken(token)
+    persistUser(user)
+    return { success: true, user }
   },
 
   /**
-   * Quick 1-click Demo Login
+   * POST /api/auth/signup → { token, user }
    */
-  loginAsDemo(demoId = 0) {
-    const users = this.getUsers()
-    const target = users.find(u => u.id === demoId) || users[0]
-    if (target) {
-      safeSetStorage('skillswap_is_logged_in', true)
-      safeSetStorage('skillswap_current_user', target)
-      return { success: true, user: target }
+  async signup(name, email, password) {
+    const res = await apiRequest('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password }),
+    })
+
+    if (!res.success) {
+      return { success: false, message: res.error }
     }
-    return { success: false, message: 'Demo profile not found.' }
+
+    const { token, user } = res.data
+    setToken(token)
+    persistUser(user)
+    return { success: true, user }
   },
 
   /**
-   * Register a new student account
-   * (Ready for FastAPI: POST /api/auth/signup)
+   * GET /api/auth/me — validates current token and refreshes user data.
    */
-  signup(name, email, password) {
-    const cleanName = name.trim()
-    const cleanEmail = email.trim().toLowerCase()
-    const cleanPassword = password.trim()
-    const users = this.getUsers()
-
-    const exists = users.some(u => u.email.toLowerCase() === cleanEmail)
-    if (exists) {
-      return {
-        success: false,
-        message: 'An account with this email already exists. Please log in instead.',
-      }
+  async fetchCurrentUser() {
+    const res = await apiRequest('/auth/me')
+    if (!res.success) {
+      clearSession()
+      return null
     }
-
-    const newUser = {
-      id: Date.now(),
-      name: cleanName,
-      email: cleanEmail,
-      password: cleanPassword,
-      avatar: '🎓',
-      bio: `Hello! I am ${cleanName}, a student on SkillSwap excited to learn and share skills.`,
-      university: 'Campus Student',
-      skillsOffered: ['JavaScript', 'Web Basics'],
-      skillsWanted: ['Python', 'Graphic Design'],
-      category: 'Technology',
-      rating: 5.0,
-      exchanges: 0,
-    }
-
-    const updatedUsers = [newUser, ...users]
-    safeSetStorage('skillswap_users', updatedUsers)
-    safeSetStorage('skillswap_is_logged_in', true)
-    safeSetStorage('skillswap_current_user', newUser)
-
-    return { success: true, user: newUser, users: updatedUsers }
+    persistUser(res.data)
+    return res.data
   },
 
   /**
-   * Update student profile fields
-   * (Ready for FastAPI: PUT /api/users/profile)
+   * PUT /api/users/profile → updated user object
    */
-  updateProfile(currentUser, updatedFields) {
-    if (!currentUser) return false
+  async updateProfile(updatedFields) {
+    const res = await apiRequest('/users/profile', {
+      method: 'PUT',
+      body: JSON.stringify(updatedFields),
+    })
 
-    const updatedUser = {
-      ...currentUser,
-      ...updatedFields,
+    if (!res.success) {
+      return { success: false, message: res.error }
     }
 
-    const users = this.getUsers()
-    const nextUsers = users.map(u => (u.id === updatedUser.id ? updatedUser : u))
-
-    safeSetStorage('skillswap_current_user', updatedUser)
-    safeSetStorage('skillswap_users', nextUsers)
-
-    return { success: true, user: updatedUser, users: nextUsers }
+    persistUser(res.data)
+    return { success: true, user: res.data }
   },
 
   /**
-   * Terminate current session
-   * (Ready for FastAPI: POST /api/auth/logout)
+   * Clear session — no backend call needed (JWT is stateless).
    */
   logout() {
-    safeSetStorage('skillswap_is_logged_in', false)
-    try {
-      localStorage.removeItem('skillswap_current_user')
-    } catch {
-      // ignore
-    }
+    clearSession()
     return true
   },
 }

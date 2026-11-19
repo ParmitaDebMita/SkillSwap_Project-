@@ -15,6 +15,7 @@ export default function StudentCard({ student }) {
   const [selectedWant, setSelectedWant] = useState('')
   const [customMsg, setCustomMsg] = useState('')
   const [sent, setSent] = useState(false)
+  const [sending, setSending] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   const isSelf = user && user.id === student.id
@@ -34,7 +35,7 @@ export default function StudentCard({ student }) {
     setShowModal(true)
   }
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const finalOfferSkill = (selectedOffer === '__custom__' ? customOfferInput : selectedOffer).trim()
     const finalWantSkill = selectedWant.trim()
 
@@ -49,7 +50,12 @@ export default function StudentCard({ student }) {
     }
 
     setErrorMsg('')
-    const res = sendRequest(student.id, finalOfferSkill, finalWantSkill, customMsg)
+    setSending(true)
+
+    // Pass student.id (the backend MongoDB string id)
+    const res = await sendRequest(student.id, finalOfferSkill, finalWantSkill, customMsg)
+    setSending(false)
+
     if (res && res.success) {
       setSent(true)
       setTimeout(() => {
@@ -117,9 +123,16 @@ export default function StudentCard({ student }) {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => !sending && setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowModal(false)} aria-label="Close modal">✕</button>
+            <button
+              className="modal-close"
+              onClick={() => !sending && setShowModal(false)}
+              aria-label="Close modal"
+              disabled={sending}
+            >
+              ✕
+            </button>
             <div className="modal-header">
               <span className="modal-avatar">{student.avatar}</span>
               <div>
@@ -148,6 +161,7 @@ export default function StudentCard({ student }) {
                       <select
                         value={selectedOffer}
                         onChange={e => setSelectedOffer(e.target.value)}
+                        disabled={sending}
                       >
                         {availableOfferSkills.map(s => (
                           <option key={s} value={s}>{s}</option>
@@ -160,6 +174,7 @@ export default function StudentCard({ student }) {
                           placeholder="Type custom skill to teach..."
                           value={customOfferInput}
                           onChange={e => setCustomOfferInput(e.target.value)}
+                          disabled={sending}
                           style={{
                             marginTop: '8px',
                             width: '100%',
@@ -183,6 +198,7 @@ export default function StudentCard({ student }) {
                           setCustomOfferInput(e.target.value)
                           setSelectedOffer('__custom__')
                         }}
+                        disabled={sending}
                         style={{
                           width: '100%',
                           padding: '10px 14px',
@@ -202,7 +218,11 @@ export default function StudentCard({ student }) {
 
                 <div className="modal-field">
                   <label>I want to learn from {student.name}:</label>
-                  <select value={selectedWant} onChange={e => setSelectedWant(e.target.value)}>
+                  <select
+                    value={selectedWant}
+                    onChange={e => setSelectedWant(e.target.value)}
+                    disabled={sending}
+                  >
                     {student.skillsOffered?.map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
@@ -216,6 +236,7 @@ export default function StudentCard({ student }) {
                     placeholder={`Hi ${student.name}, let's swap skills!`}
                     value={customMsg}
                     onChange={e => setCustomMsg(e.target.value)}
+                    disabled={sending}
                     style={{
                       width: '100%',
                       padding: '10px 14px',
@@ -231,12 +252,10 @@ export default function StudentCard({ student }) {
                 <button
                   className="btn btn-primary"
                   onClick={handleSend}
-                  style={{
-                    width: '100%',
-                    marginTop: '12px',
-                  }}
+                  disabled={sending}
+                  style={{ width: '100%', marginTop: '12px' }}
                 >
-                  Send Exchange Request
+                  {sending ? '⏳ Sending…' : 'Send Exchange Request'}
                 </button>
               </div>
             )}

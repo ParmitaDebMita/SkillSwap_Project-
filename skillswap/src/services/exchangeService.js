@@ -1,101 +1,58 @@
-import { safeGetStorage, safeSetStorage } from './apiClient.js'
-import { initialRequests } from '../data/mockData.js'
+/**
+ * SkillSwap Exchange Service — Real FastAPI Backend
+ *
+ * GET   /api/exchanges              → array of exchange objects (sent + received)
+ * POST  /api/exchanges              → { toId, skillOffered, skillWanted, message }
+ * PATCH /api/exchanges/{id}/status  → { status: "accepted" | "rejected" }
+ */
+
+import { apiRequest } from './apiClient.js'
 
 export const exchangeService = {
   /**
-   * Get all exchange proposals
-   * (Ready for FastAPI: GET /api/exchanges)
+   * Fetch all exchanges for the current user (sent + received).
    */
-  getRequests() {
-    const stored = safeGetStorage('skillswap_requests', null)
-    if (Array.isArray(stored)) {
-      return stored
+  async getRequests() {
+    const res = await apiRequest('/exchanges')
+    if (!res.success) {
+      console.error('[exchangeService] Failed to fetch exchanges:', res.error)
+      return []
     }
-    safeSetStorage('skillswap_requests', initialRequests)
-    return initialRequests
+    return res.data
   },
 
   /**
-   * Submit a new exchange request
-   * (Ready for FastAPI: POST /api/exchanges)
+   * Send a new exchange request.
+   * @param {string} toId - target student's id
+   * @param {string} skillOffered
+   * @param {string} skillWanted
+   * @param {string} message
    */
-  createRequest(currentUser, targetStudent, skillOffered, skillWanted, message = '') {
-    if (!currentUser) {
-      return { success: false, error: 'You must be logged in to send a request.' }
-    }
-
-    if (currentUser.id === targetStudent.id) {
-      return { success: false, error: 'You cannot send an exchange request to yourself.' }
-    }
-
-    const currentRequests = this.getRequests()
-
-    // Prevent duplicate pending requests between same pair
-    const duplicate = currentRequests.some(r => {
-      const senderId = r.fromId !== undefined ? r.fromId : r.from?.id
-      const receiverId = r.toId !== undefined ? r.toId : r.to?.id
-      const isSamePair =
-        (senderId === currentUser.id && receiverId === targetStudent.id) ||
-        (senderId === targetStudent.id && receiverId === currentUser.id)
-      return isSamePair && r.status === 'pending'
+  async createRequest(toId, skillOffered, skillWanted, message = '') {
+    const res = await apiRequest('/exchanges', {
+      method: 'POST',
+      body: JSON.stringify({ toId, skillOffered, skillWanted, message }),
     })
 
-    if (duplicate) {
-      return {
-        success: false,
-        error: 'A pending exchange request already exists between you and this student.',
-      }
+    if (!res.success) {
+      return { success: false, error: res.error }
     }
-
-    const newRequest = {
-      id: Date.now(),
-      fromId: currentUser.id,
-      toId: targetStudent.id,
-      from: {
-        id: currentUser.id,
-        name: currentUser.name,
-        avatar: currentUser.avatar,
-        university: currentUser.university,
-        email: currentUser.email,
-      },
-      to: {
-        id: targetStudent.id,
-        name: targetStudent.name,
-        avatar: targetStudent.avatar,
-        university: targetStudent.university,
-        email: targetStudent.email,
-      },
-      skillOffered,
-      skillWanted,
-      status: 'pending',
-      date: new Date().toISOString().split('T')[0],
-      message:
-        message.trim() ||
-        `Hi ${targetStudent.name}! I would love to exchange ${skillOffered} for ${skillWanted}. Let's learn together!`,
-    }
-
-    const updated = [newRequest, ...currentRequests]
-    safeSetStorage('skillswap_requests', updated)
-    return { success: true, request: newRequest, requests: updated }
+    return { success: true, request: res.data }
   },
 
   /**
-   * Update request status (accept or reject)
-   * (Ready for FastAPI: PATCH /api/exchanges/{id}/status)
+   * Accept or reject an exchange request.
+   * Only the receiver can call this — backend enforces 403 otherwise.
    */
-  updateStatus(requestId, newStatus) {
-    const currentRequests = this.getRequests()
-    let targetRequest = null
-
-    const updated = currentRequests.map(r => {
-      if (r.id === requestId) {
-        targetRequest = { ...r, status: newStatus }
-        return targetRequest
-      }
-      return r
+  async updateStatus(requestId, newStatus) {
+    const res = await apiRequest(`/exchanges/${requestId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
     })
 
-    safeSetStorage('skillswap_requests', updated)
-    return { success: true, requests: updated, updatedRequest: targetRequest }
+    if (!res.success) {
+      return { success: false, error: res.error }
+    }
+    return { success: true, updatedRequest: res.data }
   },
 }

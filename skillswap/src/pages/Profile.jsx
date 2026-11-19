@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { useData } from '../hooks/useData'
 import './Profile.css'
 
 export default function Profile() {
   const { user, updateProfile } = useAuth()
+  const { reloadStudents } = useData()
 
   const [isEditing, setIsEditing] = useState(false)
   const [name, setName] = useState('')
   const [university, setUniversity] = useState('')
   const [bio, setBio] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const [newOfferedSkill, setNewOfferedSkill] = useState('')
   const [newWantedSkill, setNewWantedSkill] = useState('')
@@ -20,62 +24,75 @@ export default function Profile() {
   const exchangesCount = user?.exchanges || 0
   const ratingValue = user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0'
 
+  const showSuccess = () => {
+    setSavedSuccess(true)
+    setTimeout(() => setSavedSuccess(false), 3000)
+  }
+
   const handleStartEditing = () => {
     setName(user?.name || '')
     setUniversity(user?.university || '')
     setBio(user?.bio || '')
+    setSaveError('')
     setIsEditing(true)
   }
 
-  const handleAddOffered = (e) => {
+  const handleAddOffered = async (e) => {
     e.preventDefault()
     const clean = newOfferedSkill.trim()
-    if (!clean) return
-
-    if (!skillsOffered.includes(clean)) {
-      const nextSkills = [...skillsOffered, clean]
-      updateProfile({ skillsOffered: nextSkills })
-      setSavedSuccess(true)
-      setTimeout(() => setSavedSuccess(false), 2000)
+    if (!clean || skillsOffered.includes(clean)) {
+      setNewOfferedSkill('')
+      return
     }
+    const nextSkills = [...skillsOffered, clean]
+    await updateProfile({ skillsOffered: nextSkills })
+    reloadStudents()
     setNewOfferedSkill('')
+    showSuccess()
   }
 
-  const handleRemoveOffered = (skillToRemove) => {
+  const handleRemoveOffered = async (skillToRemove) => {
     const nextSkills = skillsOffered.filter(s => s !== skillToRemove)
-    updateProfile({ skillsOffered: nextSkills })
+    await updateProfile({ skillsOffered: nextSkills })
+    reloadStudents()
   }
 
-  const handleAddWanted = (e) => {
+  const handleAddWanted = async (e) => {
     e.preventDefault()
     const clean = newWantedSkill.trim()
-    if (!clean) return
-
-    if (!skillsWanted.includes(clean)) {
-      const nextSkills = [...skillsWanted, clean]
-      updateProfile({ skillsWanted: nextSkills })
-      setSavedSuccess(true)
-      setTimeout(() => setSavedSuccess(false), 2000)
+    if (!clean || skillsWanted.includes(clean)) {
+      setNewWantedSkill('')
+      return
     }
+    const nextSkills = [...skillsWanted, clean]
+    await updateProfile({ skillsWanted: nextSkills })
+    reloadStudents()
     setNewWantedSkill('')
+    showSuccess()
   }
 
-  const handleRemoveWanted = (skillToRemove) => {
+  const handleRemoveWanted = async (skillToRemove) => {
     const nextSkills = skillsWanted.filter(s => s !== skillToRemove)
-    updateProfile({ skillsWanted: nextSkills })
+    await updateProfile({ skillsWanted: nextSkills })
+    reloadStudents()
   }
 
-  const handleSave = () => {
-    const success = updateProfile({
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveError('')
+    const success = await updateProfile({
       name: name.trim() || user?.name || 'Student',
       university: university.trim() || 'University Student',
       bio: bio.trim(),
     })
+    setSaving(false)
 
     if (success) {
+      reloadStudents()
       setIsEditing(false)
-      setSavedSuccess(true)
-      setTimeout(() => setSavedSuccess(false), 3000)
+      showSuccess()
+    } else {
+      setSaveError('Failed to save profile. Please try again.')
     }
   }
 
@@ -129,8 +146,9 @@ export default function Profile() {
                 className={`btn ${isEditing ? 'btn-accent' : 'btn-outline'} btn-sm`}
                 style={{ width: '100%', marginTop: '16px' }}
                 onClick={() => (isEditing ? handleSave() : handleStartEditing())}
+                disabled={saving}
               >
-                {isEditing ? '✓ Save Changes' : '✏️ Edit Profile'}
+                {saving ? '⏳ Saving…' : isEditing ? '✓ Save Changes' : '✏️ Edit Profile'}
               </button>
             </div>
           </div>
@@ -140,6 +158,13 @@ export default function Profile() {
             {isEditing && (
               <div className="profile-card profile-edit-form animate-fade-in-up">
                 <h3 className="card-title">Edit Details</h3>
+
+                {saveError && (
+                  <div style={{ color: 'var(--secondary)', fontSize: '0.875rem', marginBottom: '12px' }}>
+                    ⚠️ {saveError}
+                  </div>
+                )}
+
                 <div className="edit-form-grid">
                   <div className="form-group">
                     <label>Full Name</label>
@@ -148,6 +173,7 @@ export default function Profile() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Your full name"
+                      disabled={saving}
                     />
                   </div>
                   <div className="form-group">
@@ -157,6 +183,7 @@ export default function Profile() {
                       value={university}
                       onChange={(e) => setUniversity(e.target.value)}
                       placeholder="Your university or school"
+                      disabled={saving}
                     />
                   </div>
                   <div className="form-group form-group-full">
@@ -166,6 +193,7 @@ export default function Profile() {
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       placeholder="Tell peers what you love to do..."
+                      disabled={saving}
                     ></textarea>
                   </div>
                 </div>
@@ -174,6 +202,7 @@ export default function Profile() {
                     type="button"
                     className="btn btn-outline btn-sm"
                     onClick={() => setIsEditing(false)}
+                    disabled={saving}
                   >
                     Cancel
                   </button>
@@ -181,8 +210,9 @@ export default function Profile() {
                     type="button"
                     className="btn btn-primary btn-sm"
                     onClick={handleSave}
+                    disabled={saving}
                   >
-                    ✓ Save Changes
+                    {saving ? '⏳ Saving…' : '✓ Save Changes'}
                   </button>
                 </div>
               </div>

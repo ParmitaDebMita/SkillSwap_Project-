@@ -1,84 +1,87 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { AuthContext } from './contexts'
 import { authService } from '../services/authService'
 
 export function AuthProvider({ children }) {
-  // Demo users directory
-  const [users, setUsers] = useState(() => authService.getUsers())
-
-  // Initial authentication state: ALWAYS logged out initially unless previously logged in
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return authService.getCurrentUser() !== null
-  })
-
-  // Currently authenticated student
+  // Seed from cache for instant first render (avoids flash of logged-out state)
   const [user, setUser] = useState(() => authService.getCurrentUser())
+  const [isLoggedIn, setIsLoggedIn] = useState(() => authService.getCurrentUser() !== null)
+  const [authLoading, setAuthLoading] = useState(true) // true while we verify token with backend
 
-  // Keep state synced with localStorage
+  // ── On mount: validate cached token with GET /api/auth/me ────────────────
   useEffect(() => {
-    if (isLoggedIn && user) {
-      authService.updateProfile(user, {})
-    }
-  }, [isLoggedIn, user])
+    let cancelled = false
 
-  // Login handler
-  const login = (email, password) => {
-    const res = authService.login(email, password)
+    async function verifySession() {
+      const cached = authService.getCurrentUser()
+      if (!cached) {
+        // Not logged in — nothing to verify
+        setAuthLoading(false)
+        return
+      }
+
+      const freshUser = await authService.fetchCurrentUser()
+      if (!cancelled) {
+        if (freshUser) {
+          setUser(freshUser)
+          setIsLoggedIn(true)
+        } else {
+          // Token expired or invalid — log out silently
+          setUser(null)
+          setIsLoggedIn(false)
+        }
+        setAuthLoading(false)
+      }
+    }
+
+    verifySession()
+    return () => { cancelled = true }
+  }, [])
+
+  // ── Login: POST /api/auth/login ──────────────────────────────────────────
+  const login = useCallback(async (email, password) => {
+    const res = await authService.login(email, password)
     if (res.success) {
       setUser(res.user)
       setIsLoggedIn(true)
     }
     return res
-  }
+  }, [])
 
-  // Quick 1-click login as demo account
-  const loginAsDemo = (demoId = 0) => {
-    const res = authService.loginAsDemo(demoId)
+  // ── Signup: POST /api/auth/signup ────────────────────────────────────────
+  const signup = useCallback(async (name, email, password) => {
+    const res = await authService.signup(name, email, password)
     if (res.success) {
       setUser(res.user)
       setIsLoggedIn(true)
     }
     return res
-  }
+  }, [])
 
-  // Signup handler
-  const signup = (name, email, password) => {
-    const res = authService.signup(name, email, password)
+  // ── Profile update: PUT /api/users/profile ───────────────────────────────
+  const updateProfile = useCallback(async (updatedFields) => {
+    const res = await authService.updateProfile(updatedFields)
     if (res.success) {
       setUser(res.user)
-      setIsLoggedIn(true)
-      if (res.users) setUsers(res.users)
-    }
-    return res
-  }
-
-  // Profile update handler
-  const updateProfile = (updatedFields) => {
-    if (!user) return false
-    const res = authService.updateProfile(user, updatedFields)
-    if (res.success) {
-      setUser(res.user)
-      if (res.users) setUsers(res.users)
       return true
     }
     return false
-  }
+  }, [])
 
-  // Logout handler
-  const logout = () => {
+  // ── Logout ───────────────────────────────────────────────────────────────
+  const logout = useCallback(() => {
     authService.logout()
     setUser(null)
     setIsLoggedIn(false)
-  }
+  }, [])
 
   return (
     <AuthContext.Provider
       value={{
         isLoggedIn,
         user,
-        users,
+        authLoading,
         login,
-        loginAsDemo,
         signup,
         updateProfile,
         logout,

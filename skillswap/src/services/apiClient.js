@@ -1,26 +1,22 @@
 /**
  * SkillSwap API Client
- * 
- * Configured for seamless transition between Local Demo Mode (localStorage)
- * and future FastAPI + MongoDB backend endpoints.
- * 
- * FastAPI Backend Configuration:
- * - Base URL defaults to http://localhost:8000/api
- * - Set VITE_API_URL in .env to override
+ *
+ * Base URL: http://localhost:8000/api (from VITE_API_URL or default)
+ * JWT token is stored in localStorage key: skillswap_auth_token
  */
 
 export const API_BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
   'http://localhost:8000/api'
 
-// Helper for safe JSON storage access
+// ── Safe localStorage helpers ─────────────────────────────────────────────────
+
 export function safeGetStorage(key, fallback) {
   try {
     const raw = localStorage.getItem(key)
     if (raw === null || raw === undefined || raw === 'undefined') return fallback
     return JSON.parse(raw)
-  } catch (err) {
-    console.warn(`[SkillSwap Storage] Error reading ${key}:`, err)
+  } catch {
     return fallback
   }
 }
@@ -28,20 +24,42 @@ export function safeGetStorage(key, fallback) {
 export function safeSetStorage(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value))
-  } catch (err) {
-    console.warn(`[SkillSwap Storage] Error saving ${key}:`, err)
+  } catch {
+    // ignore storage errors
   }
 }
 
+export function safeRemoveStorage(key) {
+  try {
+    localStorage.removeItem(key)
+  } catch {
+    // ignore
+  }
+}
+
+// ── Token helpers ─────────────────────────────────────────────────────────────
+
+export function getToken() {
+  return safeGetStorage('skillswap_auth_token', null)
+}
+
+export function setToken(token) {
+  safeSetStorage('skillswap_auth_token', token)
+}
+
+export function clearToken() {
+  safeRemoveStorage('skillswap_auth_token')
+}
+
+// ── Core HTTP request wrapper ─────────────────────────────────────────────────
 /**
- * Standard HTTP request wrapper prepared for FastAPI endpoints:
- * - Automatically injects Bearer token if available
- * - Handles JSON serialization and response parsing
- * - Standardized error formatting matching FastAPI HTTPExceptions
+ * Makes an authenticated HTTP request to the FastAPI backend.
+ * - Automatically injects Bearer token if available.
+ * - Returns { success: true, data } or { success: false, error, status }.
  */
 export async function apiRequest(endpoint, options = {}) {
-  const token = safeGetStorage('skillswap_auth_token', null)
-  
+  const token = getToken()
+
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -68,7 +86,7 @@ export async function apiRequest(endpoint, options = {}) {
   } catch (networkError) {
     return {
       success: false,
-      error: networkError.message || 'Network connection failed.',
+      error: networkError.message || 'Network connection failed. Is the backend running?',
       isNetworkError: true,
     }
   }
