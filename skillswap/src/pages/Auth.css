@@ -10,14 +10,14 @@
 .auth-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  max-width: 900px;
+  max-width: 920px;
   width: 100%;
   background: var(--bg-card);
   border-radius: 24px;
   overflow: hidden;
   box-shadow: var(--shadow-hover);
   border: 1px solid var(--border);
-  min-height: 520px;
+  min-height: 540px;
 }
 
 .auth-visual {
@@ -82,12 +82,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 36px;
+  padding: 44px 36px;
 }
 
 .auth-form-wrapper {
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
 }
 
 .auth-title {
@@ -100,13 +100,39 @@
 .auth-subtitle {
   color: var(--text-secondary);
   font-size: 0.9rem;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
+}
+
+.demo-notice-banner {
+  background: rgba(108, 99, 255, 0.08);
+  border: 1px dashed var(--primary);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  line-height: 1.4;
+}
+
+.demo-notice-banner strong {
+  color: var(--primary);
+}
+
+.form-alert-error {
+  background: rgba(255, 107, 107, 0.12);
+  border: 1px solid var(--secondary);
+  color: var(--secondary);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  margin-bottom: 18px;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .form-group {
@@ -147,8 +173,56 @@
   font-weight: 500;
 }
 
+/* Quick demo switch helper */
+.quick-demo-box {
+  margin-top: 20px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.quick-demo-title {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.quick-demo-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quick-demo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.quick-demo-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateX(2px);
+}
+
 .auth-switch {
-  margin-top: 24px;
+  margin-top: 20px;
   text-align: center;
   font-size: 0.88rem;
   color: var(--text-secondary);
@@ -192,4 +266,3 @@
     font-size: 1.5rem;
   }
 }
-

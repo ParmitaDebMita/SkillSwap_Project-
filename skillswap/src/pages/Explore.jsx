@@ -15,11 +15,11 @@ export default function Explore() {
       const searchLower = search.toLowerCase()
       const matchesSearch =
         !search ||
-        student.name.toLowerCase().includes(searchLower) ||
-        student.skillsOffered.some(s => s.toLowerCase().includes(searchLower)) ||
-        student.skillsWanted.some(s => s.toLowerCase().includes(searchLower)) ||
-        student.university.toLowerCase().includes(searchLower) ||
-        student.bio.toLowerCase().includes(searchLower)
+        student.name?.toLowerCase().includes(searchLower) ||
+        student.skillsOffered?.some(s => s.toLowerCase().includes(searchLower)) ||
+        student.skillsWanted?.some(s => s.toLowerCase().includes(searchLower)) ||
+        student.university?.toLowerCase().includes(searchLower) ||
+        student.bio?.toLowerCase().includes(searchLower)
       return matchesCategory && matchesSearch
     })
   }, [students, search, activeCategory])
@@ -52,7 +52,13 @@ export default function Explore() {
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button className="search-clear" onClick={() => setSearch('')}>✕</button>
+              <button
+                className="search-clear"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+              >
+                ✕
+              </button>
             )}
           </div>
 
@@ -83,7 +89,10 @@ export default function Explore() {
             <p>Try adjusting your search or category filter.</p>
             <button
               className="btn btn-outline"
-              onClick={() => { setSearch(''); setActiveCategory('All'); }}
+              onClick={() => {
+                setSearch('')
+                setActiveCategory('All')
+              }}
             >
               Clear Filters
             </button>
@@ -93,4 +102,3 @@ export default function Explore() {
     </div>
   )
 }
-

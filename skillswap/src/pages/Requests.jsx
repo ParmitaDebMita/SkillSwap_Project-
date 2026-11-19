@@ -1,22 +1,32 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useData } from '../context/DataContext'
+import { useAuth } from '../context/AuthContext'
 import RequestCard from '../components/RequestCard'
 import './Requests.css'
 
 export default function Requests() {
   const { requests } = useData()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('received') // 'received' or 'sent'
   const [statusFilter, setStatusFilter] = useState('all') // 'all', 'pending', 'accepted', 'rejected'
 
-  const receivedCount = requests.filter(r => r.type === 'received').length
-  const sentCount = requests.filter(r => r.type === 'sent').length
-  const pendingReceived = requests.filter(r => r.type === 'received' && r.status === 'pending').length
+  // Filter requests dynamically based on currently logged-in user
+  const receivedRequests = requests.filter(
+    r => r.toId === user?.id || r.to?.id === user?.id
+  )
+  const sentRequests = requests.filter(
+    r => r.fromId === user?.id || r.from?.id === user?.id
+  )
 
-  const filteredRequests = requests.filter(r => {
-    const matchesTab = r.type === activeTab
-    const matchesStatus = statusFilter === 'all' || r.status === statusFilter
-    return matchesTab && matchesStatus
+  const receivedCount = receivedRequests.length
+  const sentCount = sentRequests.length
+  const pendingReceived = receivedRequests.filter(r => r.status === 'pending').length
+
+  const currentTabRequests = activeTab === 'received' ? receivedRequests : sentRequests
+
+  const filteredRequests = currentTabRequests.filter(r => {
+    return statusFilter === 'all' || r.status === statusFilter
   })
 
   return (
@@ -44,7 +54,9 @@ export default function Requests() {
             📥 Received Requests
             <span className="tab-counter">
               {receivedCount}
-              {pendingReceived > 0 && <span className="tab-pending-dot" title="Pending requests"></span>}
+              {pendingReceived > 0 && (
+                <span className="tab-pending-dot" title={`${pendingReceived} pending requests`}></span>
+              )}
             </span>
           </button>
           <button
@@ -82,11 +94,13 @@ export default function Requests() {
             <span className="empty-icon">
               {activeTab === 'received' ? '📭' : '🚀'}
             </span>
-            <h3>No {statusFilter !== 'all' ? statusFilter : ''} {activeTab} requests found</h3>
+            <h3>
+              No {statusFilter !== 'all' ? statusFilter : ''} {activeTab} requests found
+            </h3>
             <p>
               {activeTab === 'received'
-                ? 'When someone invites you to an exchange, their invitation will appear here.'
-                : 'Browse student profiles in Explore Skills and send exchange proposals!'}
+                ? 'When another student invites you to a skill exchange, their proposal will appear here for you to accept or decline.'
+                : 'Browse student profiles in Explore Skills and send an exchange proposal to learn something new!'}
             </p>
             <Link to="/explore" className="btn btn-outline btn-sm">
               Explore Skills Now

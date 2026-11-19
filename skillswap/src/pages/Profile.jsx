@@ -3,51 +3,78 @@ import { useAuth } from '../context/AuthContext'
 import './Profile.css'
 
 export default function Profile() {
-  const { user } = useAuth()
+  const { user, updateProfile } = useAuth()
 
   const [isEditing, setIsEditing] = useState(false)
-  const [name, setName] = useState(user?.name || 'Alex Johnson')
-  const [university, setUniversity] = useState(user?.university || 'Stanford University')
-  const [bio, setBio] = useState(
-    user?.bio || 'Full-stack developer and lifelong learner. Always up for exchanging knowledge and meeting new people.'
-  )
-  const [skillsOffered, setSkillsOffered] = useState(user?.skillsOffered || ['React', 'Node.js', 'TypeScript'])
-  const [skillsWanted, setSkillsWanted] = useState(user?.skillsWanted || ['Machine Learning', 'UI/UX Design', 'Photography'])
+  const [name, setName] = useState('')
+  const [university, setUniversity] = useState('')
+  const [bio, setBio] = useState('')
 
   const [newOfferedSkill, setNewOfferedSkill] = useState('')
   const [newWantedSkill, setNewWantedSkill] = useState('')
   const [savedSuccess, setSavedSuccess] = useState(false)
 
+  // Current user skills are derived directly from user object (single source of truth)
+  const skillsOffered = user?.skillsOffered || []
+  const skillsWanted = user?.skillsWanted || []
+
+  const handleStartEditing = () => {
+    setName(user?.name || '')
+    setUniversity(user?.university || '')
+    setBio(user?.bio || '')
+    setIsEditing(true)
+  }
+
   const handleAddOffered = (e) => {
     e.preventDefault()
-    if (!newOfferedSkill.trim()) return
-    if (!skillsOffered.includes(newOfferedSkill.trim())) {
-      setSkillsOffered([...skillsOffered, newOfferedSkill.trim()])
+    const clean = newOfferedSkill.trim()
+    if (!clean) return
+
+    if (!skillsOffered.includes(clean)) {
+      const nextSkills = [...skillsOffered, clean]
+      updateProfile({ skillsOffered: nextSkills })
+      setSavedSuccess(true)
+      setTimeout(() => setSavedSuccess(false), 2000)
     }
     setNewOfferedSkill('')
   }
 
   const handleRemoveOffered = (skillToRemove) => {
-    setSkillsOffered(skillsOffered.filter(s => s !== skillToRemove))
+    const nextSkills = skillsOffered.filter(s => s !== skillToRemove)
+    updateProfile({ skillsOffered: nextSkills })
   }
 
   const handleAddWanted = (e) => {
     e.preventDefault()
-    if (!newWantedSkill.trim()) return
-    if (!skillsWanted.includes(newWantedSkill.trim())) {
-      setSkillsWanted([...skillsWanted, newWantedSkill.trim()])
+    const clean = newWantedSkill.trim()
+    if (!clean) return
+
+    if (!skillsWanted.includes(clean)) {
+      const nextSkills = [...skillsWanted, clean]
+      updateProfile({ skillsWanted: nextSkills })
+      setSavedSuccess(true)
+      setTimeout(() => setSavedSuccess(false), 2000)
     }
     setNewWantedSkill('')
   }
 
   const handleRemoveWanted = (skillToRemove) => {
-    setSkillsWanted(skillsWanted.filter(s => s !== skillToRemove))
+    const nextSkills = skillsWanted.filter(s => s !== skillToRemove)
+    updateProfile({ skillsWanted: nextSkills })
   }
 
   const handleSave = () => {
-    setIsEditing(false)
-    setSavedSuccess(true)
-    setTimeout(() => setSavedSuccess(false), 2500)
+    const success = updateProfile({
+      name: name.trim() || user?.name || 'Student',
+      university: university.trim() || 'University Student',
+      bio: bio.trim(),
+    })
+
+    if (success) {
+      setIsEditing(false)
+      setSavedSuccess(true)
+      setTimeout(() => setSavedSuccess(false), 3000)
+    }
   }
 
   return (
@@ -55,7 +82,7 @@ export default function Profile() {
       <div className="container">
         {savedSuccess && (
           <div className="alert-success-banner animate-fade-in">
-            ✓ Profile information saved successfully!
+            ✓ Profile information saved and updated successfully!
           </div>
         )}
 
@@ -68,31 +95,35 @@ export default function Profile() {
                 <span className="online-badge" title="Active student"></span>
               </div>
 
-              <h2 className="profile-display-name">{name}</h2>
-              <p className="profile-display-uni">🎓 {university}</p>
-              <p className="profile-display-email">✉️ {user?.email || 'alex@skillswap.io'}</p>
+              <h2 className="profile-display-name">{user?.name || 'Student'}</h2>
+              <p className="profile-display-uni">🎓 {user?.university || 'University Student'}</p>
+              <p className="profile-display-email">✉️ {user?.email || 'student@skillswap.io'}</p>
 
               <div className="profile-stats-row">
                 <div className="profile-mini-stat">
-                  <span className="mini-stat-val">⭐ {user?.rating || 4.9}</span>
+                  <span className="mini-stat-val">
+                    ⭐ {user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0'}
+                  </span>
                   <span className="mini-stat-lbl">Rating</span>
                 </div>
                 <div className="profile-mini-stat-divider"></div>
                 <div className="profile-mini-stat">
-                  <span className="mini-stat-val">🤝 {user?.exchanges || 18}</span>
+                  <span className="mini-stat-val">
+                    🤝 {user?.exchanges !== undefined ? user.exchanges : 0}
+                  </span>
                   <span className="mini-stat-lbl">Exchanges</span>
                 </div>
               </div>
 
               <div className="profile-bio-box">
                 <h4>About Me</h4>
-                <p>{bio}</p>
+                <p>{user?.bio || 'No bio added yet. Tell other students what you are studying and what you love to build!'}</p>
               </div>
 
               <button
                 className={`btn ${isEditing ? 'btn-accent' : 'btn-outline'} btn-sm`}
                 style={{ width: '100%', marginTop: '16px' }}
-                onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
+                onClick={() => (isEditing ? handleSave() : handleStartEditing())}
               >
                 {isEditing ? '✓ Save Changes' : '✏️ Edit Profile'}
               </button>
@@ -133,6 +164,22 @@ export default function Profile() {
                     ></textarea>
                   </div>
                 </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleSave}
+                  >
+                    ✓ Save Changes
+                  </button>
+                </div>
               </div>
             )}
 
@@ -149,19 +196,25 @@ export default function Profile() {
               </div>
 
               <div className="skills-badge-list">
-                {skillsOffered.map((skill) => (
-                  <span key={skill} className="skill-chip chip-primary">
-                    {skill}
-                    <button
-                      type="button"
-                      className="chip-remove"
-                      onClick={() => handleRemoveOffered(skill)}
-                      title="Remove skill"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
+                {skillsOffered.length > 0 ? (
+                  skillsOffered.map((skill) => (
+                    <span key={skill} className="skill-chip chip-primary">
+                      {skill}
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={() => handleRemoveOffered(skill)}
+                        title={`Remove ${skill}`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                    No skills offered yet. Add a skill below to start exchanging!
+                  </p>
+                )}
               </div>
 
               <form className="add-skill-bar" onSubmit={handleAddOffered}>
@@ -190,19 +243,25 @@ export default function Profile() {
               </div>
 
               <div className="skills-badge-list">
-                {skillsWanted.map((skill) => (
-                  <span key={skill} className="skill-chip chip-secondary">
-                    {skill}
-                    <button
-                      type="button"
-                      className="chip-remove"
-                      onClick={() => handleRemoveWanted(skill)}
-                      title="Remove skill"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
+                {skillsWanted.length > 0 ? (
+                  skillsWanted.map((skill) => (
+                    <span key={skill} className="skill-chip chip-secondary">
+                      {skill}
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={() => handleRemoveWanted(skill)}
+                        title={`Remove ${skill}`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                    No skills requested yet. Add skills you are interested in learning!
+                  </p>
+                )}
               </div>
 
               <form className="add-skill-bar" onSubmit={handleAddWanted}>
@@ -226,21 +285,21 @@ export default function Profile() {
                   <span className="achieve-icon">🌟</span>
                   <div>
                     <strong>Top Mentor</strong>
-                    <small>Completed 15+ high-rated exchanges</small>
+                    <small>High rating in student reviews</small>
                   </div>
                 </div>
                 <div className="achievement-pill">
                   <span className="achieve-icon">⚡</span>
                   <div>
                     <strong>Fast Responder</strong>
-                    <small>Usually replies within 2 hours</small>
+                    <small>Active participant on SkillSwap</small>
                   </div>
                 </div>
                 <div className="achievement-pill">
                   <span className="achieve-icon">🎓</span>
                   <div>
                     <strong>Verified Campus</strong>
-                    <small>Stanford University student</small>
+                    <small>{user?.university || 'University Student'}</small>
                   </div>
                 </div>
               </div>

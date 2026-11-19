@@ -84,9 +84,25 @@
   border-top: 1px solid var(--border);
 }
 
+.request-status-notice {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.notice-accepted {
+  background: rgba(46, 196, 182, 0.1);
+  color: var(--accent);
+}
+
+.notice-rejected {
+  background: rgba(255, 107, 107, 0.1);
+  color: var(--secondary);
+}
+
 @media (max-width: 480px) {
   .request-card {
     padding: 16px;
   }
 }
-
