@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../hooks/useAuth'
 import './Profile.css'
 
 export default function Profile() {
@@ -17,6 +17,8 @@ export default function Profile() {
   // Current user skills are derived directly from user object (single source of truth)
   const skillsOffered = user?.skillsOffered || []
   const skillsWanted = user?.skillsWanted || []
+  const exchangesCount = user?.exchanges || 0
+  const ratingValue = user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0'
 
   const handleStartEditing = () => {
     setName(user?.name || '')
@@ -102,14 +104,14 @@ export default function Profile() {
               <div className="profile-stats-row">
                 <div className="profile-mini-stat">
                   <span className="mini-stat-val">
-                    ⭐ {user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0'}
+                    ⭐ {exchangesCount > 0 ? ratingValue : `${ratingValue} (New)`}
                   </span>
                   <span className="mini-stat-lbl">Rating</span>
                 </div>
                 <div className="profile-mini-stat-divider"></div>
                 <div className="profile-mini-stat">
                   <span className="mini-stat-val">
-                    🤝 {user?.exchanges !== undefined ? user.exchanges : 0}
+                    🤝 {exchangesCount}
                   </span>
                   <span className="mini-stat-lbl">Exchanges</span>
                 </div>
@@ -117,7 +119,10 @@ export default function Profile() {
 
               <div className="profile-bio-box">
                 <h4>About Me</h4>
-                <p>{user?.bio || 'No bio added yet. Tell other students what you are studying and what you love to build!'}</p>
+                <p>
+                  {user?.bio ||
+                    'No bio added yet. Tell other students what you are studying and what skills you love to build!'}
+                </p>
               </div>
 
               <button
@@ -277,17 +282,35 @@ export default function Profile() {
               </form>
             </div>
 
-            {/* Reputation & Badges */}
+            {/* Real Student Achievements */}
             <div className="profile-card">
               <h3 className="card-title">Student Achievements</h3>
               <div className="achievements-grid">
-                <div className="achievement-pill">
-                  <span className="achieve-icon">🌟</span>
-                  <div>
-                    <strong>Top Mentor</strong>
-                    <small>High rating in student reviews</small>
+                {exchangesCount >= 5 && Number(ratingValue) >= 4.8 ? (
+                  <div className="achievement-pill">
+                    <span className="achieve-icon">🌟</span>
+                    <div>
+                      <strong>Top Mentor</strong>
+                      <small>High peer rating across 5+ exchanges</small>
+                    </div>
                   </div>
-                </div>
+                ) : exchangesCount > 0 ? (
+                  <div className="achievement-pill">
+                    <span className="achieve-icon">🤝</span>
+                    <div>
+                      <strong>Active Exchanger</strong>
+                      <small>Completed {exchangesCount} verified exchange{exchangesCount > 1 ? 's' : ''}</small>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="achievement-pill">
+                    <span className="achieve-icon">🚀</span>
+                    <div>
+                      <strong>Community Explorer</strong>
+                      <small>Ready to start first skill exchange</small>
+                    </div>
+                  </div>
+                )}
                 <div className="achievement-pill">
                   <span className="achieve-icon">⚡</span>
                   <div>
@@ -299,7 +322,7 @@ export default function Profile() {
                   <span className="achieve-icon">🎓</span>
                   <div>
                     <strong>Verified Campus</strong>
-                    <small>{user?.university || 'University Student'}</small>
+                    <small>{user?.university || 'University Member'}</small>
                   </div>
                 </div>
               </div>

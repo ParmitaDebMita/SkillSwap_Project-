@@ -124,7 +124,7 @@
   border-radius: 20px;
   padding: 32px;
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
   position: relative;
   animation: fadeInUp 0.3s ease;
   border: 1px solid var(--border);
@@ -195,7 +195,11 @@
   font-family: inherit;
   cursor: pointer;
   transition: border-color 0.2s;
-  appearance: none;
+}
+
+.modal-field select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
 }
 
 .modal-field select:focus {
@@ -218,4 +222,3 @@
   font-weight: 600;
   color: var(--accent);
 }
-

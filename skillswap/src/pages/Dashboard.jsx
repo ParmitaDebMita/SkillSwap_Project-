@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { useData } from '../context/DataContext'
+import { useAuth } from '../hooks/useAuth'
+import { useData } from '../hooks/useData'
 import StatCard from '../components/StatCard'
 import RequestCard from '../components/RequestCard'
 import './Dashboard.css'
@@ -9,7 +9,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const { requests, students } = useData()
 
-  // Calculate actual statistics from application data
+  // Actual statistics calculated dynamically from application data
   const pendingReceivedCount = requests.filter(
     r => (r.toId === user?.id || r.to?.id === user?.id) && r.status === 'pending'
   ).length
@@ -23,16 +23,19 @@ export default function Dashboard() {
       r.status === 'accepted'
   ).length
 
-  // Synchronized exchange count (from accepted requests or user profile)
+  // Synchronized exchange count from actual accepted proposals and user record
   const totalExchanges = Math.max(user?.exchanges || 0, acceptedExchangesCount)
 
-  // Actual rating from mock profile (no hardcoded fallback)
-  const displayRating = user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0'
+  // Clear, non-misleading rating indicator
+  const displayRating =
+    totalExchanges > 0
+      ? (user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0')
+      : '5.0 (New)'
 
   // Community peers count excluding current user
   const communityCount = students.filter(s => s.id !== user?.id).length
 
-  // Recent requests relevant to current user (both received and sent)
+  // Recent requests relevant to current student
   const recentUserRequests = requests
     .filter(
       r =>
@@ -46,7 +49,7 @@ export default function Dashboard() {
   const offeredList = user?.skillsOffered || []
   const wantedList = user?.skillsWanted || []
 
-  // Suggested matches: peers who can teach what user wants, or want what user teaches
+  // Suggested peer matches: Students who offer what you want, or want what you offer
   const suggestedMatches = students
     .filter(
       s =>
@@ -90,7 +93,7 @@ export default function Dashboard() {
           />
           <StatCard
             icon="⭐"
-            label="Your Rating"
+            label="Student Rating"
             value={displayRating}
             color="accent"
           />
@@ -155,7 +158,9 @@ export default function Dashboard() {
           <div className="dashboard-card">
             <div className="card-header-row">
               <h2 className="dashboard-card-title">Recent Requests</h2>
-              <Link to="/requests" className="view-all-link">View All ({requests.filter(r => r.fromId === user?.id || r.from?.id === user?.id || r.toId === user?.id || r.to?.id === user?.id).length}) →</Link>
+              <Link to="/requests" className="view-all-link">
+                View All ({requests.filter(r => r.fromId === user?.id || r.from?.id === user?.id || r.toId === user?.id || r.to?.id === user?.id).length}) →
+              </Link>
             </div>
             <div className="recent-requests">
               {recentUserRequests.length > 0 ? (
@@ -165,7 +170,7 @@ export default function Dashboard() {
               ) : (
                 <div className="empty-state">
                   <span className="empty-icon">📭</span>
-                  <p>No active exchange requests found. Find students in Explore!</p>
+                  <p>No active exchange requests found. Find peers in Explore Skills!</p>
                 </div>
               )}
             </div>
@@ -194,12 +199,18 @@ export default function Dashboard() {
                         <span key={s} className="badge badge-accent">{s}</span>
                       ))}
                   </div>
-                  <Link to="/explore" className="btn btn-outline btn-sm">View</Link>
+                  <Link
+                    to={`/explore?search=${encodeURIComponent(student.name)}`}
+                    className="btn btn-outline btn-sm"
+                    title={`View ${student.name}'s profile in Explore`}
+                  >
+                    View
+                  </Link>
                 </div>
               ))
             ) : (
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                No direct matches at the moment. Explore all student skills in the explore directory!
+                No direct matches at the moment. Browse all student skills in Explore Skills!
               </p>
             )}
           </div>

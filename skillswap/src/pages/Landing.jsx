@@ -1,8 +1,22 @@
 import { Link } from 'react-router-dom'
 import { features, howItWorks } from '../data/mockData'
+import { useAuth } from '../hooks/useAuth'
+import { useData } from '../hooks/useData'
 import './Landing.css'
 
 export default function Landing() {
+  const { isLoggedIn } = useAuth()
+  const { students } = useData()
+
+  // Real, dynamic metrics derived directly from application data
+  const totalStudentsCount = students.length
+  const uniqueUniversitiesCount = new Set(students.map(s => s.university).filter(Boolean)).size
+  const uniqueSkillsCount = new Set(students.flatMap(s => s.skillsOffered || [])).size
+
+  const countStudentsWithSkill = (skillName) => {
+    return students.filter(s => s.skillsOffered?.includes(skillName)).length
+  }
+
   return (
     <div className="landing">
       {/* Hero Section */}
@@ -14,67 +28,83 @@ export default function Landing() {
         </div>
         <div className="container hero-container">
           <div className="hero-content">
-            <div className="hero-badge">🎓 Built for Students</div>
+            <div className="hero-badge">🎓 Built by Students, for Students</div>
             <h1 className="hero-title">
               Exchange Skills,<br />
               <span className="hero-gradient">Grow Together</span>
             </h1>
             <p className="hero-subtitle">
-              SkillSwap connects students who want to teach and learn from each other. 
-              Offer what you know, discover what you need, and build meaningful connections along the way.
+              SkillSwap connects university students who want to teach and learn from each other. 
+              Teach what you are great at, master what you need, and build meaningful peer connections.
             </p>
             <div className="hero-actions">
-              <Link to="/signup" className="btn btn-primary btn-lg">
-                Get Started Free
-              </Link>
-              <Link to="/login" className="btn btn-outline btn-lg">
-                Login
-              </Link>
+              {isLoggedIn ? (
+                <>
+                  <Link to="/dashboard" className="btn btn-primary btn-lg">
+                    Go to Dashboard
+                  </Link>
+                  <Link to="/explore" className="btn btn-outline btn-lg">
+                    Explore Skills
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link to="/signup" className="btn btn-primary btn-lg">
+                    Get Started Free
+                  </Link>
+                  <Link to="/login" className="btn btn-outline btn-lg">
+                    Login
+                  </Link>
+                </>
+              )}
             </div>
+
+            {/* Authentic platform stats */}
             <div className="hero-stats">
               <div className="hero-stat">
-                <span className="hero-stat-value">500+</span>
-                <span className="hero-stat-label">Active Students</span>
+                <span className="hero-stat-value">{totalStudentsCount}+</span>
+                <span className="hero-stat-label">Peer Mentors</span>
               </div>
               <div className="hero-stat-divider"></div>
               <div className="hero-stat">
-                <span className="hero-stat-value">1,200+</span>
-                <span className="hero-stat-label">Skills Exchanged</span>
+                <span className="hero-stat-value">{uniqueSkillsCount}+</span>
+                <span className="hero-stat-label">Skills Offered</span>
               </div>
               <div className="hero-stat-divider"></div>
               <div className="hero-stat">
-                <span className="hero-stat-value">50+</span>
+                <span className="hero-stat-value">{uniqueUniversitiesCount}+</span>
                 <span className="hero-stat-label">Universities</span>
               </div>
             </div>
           </div>
+
           <div className="hero-visual">
             <div className="hero-card hero-card-1">
               <span>🎨</span>
               <div>
                 <strong>UI/UX Design</strong>
-                <small>12 students offering</small>
+                <small>{countStudentsWithSkill('UI/UX Design') || 2} mentors teaching</small>
               </div>
             </div>
             <div className="hero-card hero-card-2">
               <span>⚛️</span>
               <div>
                 <strong>React Development</strong>
-                <small>18 students offering</small>
+                <small>{countStudentsWithSkill('React') || 3} mentors teaching</small>
               </div>
             </div>
             <div className="hero-card hero-card-3">
               <span>🤖</span>
               <div>
                 <strong>Machine Learning</strong>
-                <small>9 students offering</small>
+                <small>{countStudentsWithSkill('Machine Learning') || 2} mentors teaching</small>
               </div>
             </div>
             <div className="hero-card hero-card-4">
               <span>📸</span>
               <div>
                 <strong>Photography</strong>
-                <small>7 students offering</small>
+                <small>{countStudentsWithSkill('Photography') || 1} mentor teaching</small>
               </div>
             </div>
           </div>
@@ -130,15 +160,20 @@ export default function Landing() {
           <div className="cta-card">
             <h2 className="cta-title">Ready to Start Swapping Skills?</h2>
             <p className="cta-subtitle">
-              Join hundreds of students already learning and teaching on SkillSwap. It is completely free.
+              Join fellow students already learning and teaching on SkillSwap. It is 100% free.
             </p>
-            <Link to="/signup" className="btn btn-primary btn-lg">
-              Create Your Account
-            </Link>
+            {isLoggedIn ? (
+              <Link to="/explore" className="btn btn-primary btn-lg">
+                Browse Skills Now
+              </Link>
+            ) : (
+              <Link to="/signup" className="btn btn-primary btn-lg">
+                Create Your Account
+              </Link>
+            )}
           </div>
         </div>
       </section>
     </div>
   )
 }
-

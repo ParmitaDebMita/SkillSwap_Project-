@@ -1,5 +1,5 @@
-import { useData } from '../context/DataContext'
-import { useAuth } from '../context/AuthContext'
+import { useData } from '../hooks/useData'
+import { useAuth } from '../hooks/useAuth'
 import './RequestCard.css'
 
 export default function RequestCard({ request }) {
@@ -74,7 +74,7 @@ export default function RequestCard({ request }) {
       {/* Helper notice if accepted */}
       {request.status === 'accepted' && (
         <div className="request-status-notice notice-accepted">
-          ✓ Exchange confirmed! You can connect with {person?.name} to begin learning.
+          ✓ Exchange confirmed! Connect with {person?.name} to begin learning.
         </div>
       )}
 

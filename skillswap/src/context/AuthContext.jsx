@@ -1,184 +1,74 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { currentUser as initialAlex, students as initialStudents } from '../data/mockData'
-
-const AuthContext = createContext()
-
-function safeGetStorage(key, fallback) {
-  try {
-    const raw = localStorage.getItem(key)
-    if (raw === null || raw === undefined || raw === 'undefined') return fallback
-    return JSON.parse(raw)
-  } catch (err) {
-    console.warn(`[SkillSwap Storage] Error reading ${key}:`, err)
-    return fallback
-  }
-}
-
-function safeSetStorage(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch (err) {
-    console.warn(`[SkillSwap Storage] Error saving ${key}:`, err)
-  }
-}
-
-// Initial demo user pool containing Alex Johnson and mock student profiles
-const initialDemoUsers = [initialAlex, ...initialStudents]
+import { useState, useEffect } from 'react'
+import { AuthContext } from './contexts'
+import { authService } from '../services/authService'
 
 export function AuthProvider({ children }) {
-  // Demo users repository in localStorage
-  const [users, setUsers] = useState(() => {
-    const stored = safeGetStorage('skillswap_users', null)
-    if (Array.isArray(stored) && stored.length > 0) {
-      return stored
-    }
-    safeSetStorage('skillswap_users', initialDemoUsers)
-    return initialDemoUsers
-  })
+  // Demo users directory
+  const [users, setUsers] = useState(() => authService.getUsers())
 
-  // Initial authentication state: ALWAYS logged out initially unless explicitly logged in previously
+  // Initial authentication state: ALWAYS logged out initially unless previously logged in
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    const storedAuth = safeGetStorage('skillswap_is_logged_in', false)
-    return storedAuth === true
+    return authService.getCurrentUser() !== null
   })
 
-  // Currently authenticated user (null when logged out)
-  const [user, setUser] = useState(() => {
-    const storedAuth = safeGetStorage('skillswap_is_logged_in', false)
-    if (!storedAuth) return null
-    const storedUser = safeGetStorage('skillswap_current_user', null)
-    return storedUser || null
-  })
+  // Currently authenticated student
+  const [user, setUser] = useState(() => authService.getCurrentUser())
 
   // Keep state synced with localStorage
   useEffect(() => {
-    safeSetStorage('skillswap_is_logged_in', isLoggedIn)
     if (isLoggedIn && user) {
-      safeSetStorage('skillswap_current_user', user)
-    } else {
-      try {
-        localStorage.removeItem('skillswap_current_user')
-      } catch {
-        // ignore
-      }
+      authService.updateProfile(user, {})
     }
   }, [isLoggedIn, user])
 
-  // Save users directory whenever it changes
-  useEffect(() => {
-    if (users && users.length > 0) {
-      safeSetStorage('skillswap_users', users)
-    }
-  }, [users])
-
-  // Login action with validation against demo user accounts
+  // Login handler
   const login = (email, password) => {
-    const cleanEmail = email.trim().toLowerCase()
-    const cleanPassword = password.trim()
-
-    // Find user in registered demo users
-    const found = users.find(u => u.email.toLowerCase() === cleanEmail)
-    if (!found) {
-      return {
-        success: false,
-        message: 'No account found with this email. Please check your email or sign up.',
-      }
-    }
-
-    // Verify password (demo check: password123 or matches stored password)
-    if (found.password && cleanPassword !== found.password) {
-      return {
-        success: false,
-        message: 'Incorrect password. (Hint: Demo password is "password123")',
-      }
-    }
-
-    setUser(found)
-    setIsLoggedIn(true)
-    return { success: true, user: found }
-  }
-
-  // Quick 1-click login as a demo account (for effortless multi-user testing)
-  const loginAsDemo = (demoId = 0) => {
-    const target = users.find(u => u.id === demoId) || users[0]
-    if (target) {
-      setUser(target)
+    const res = authService.login(email, password)
+    if (res.success) {
+      setUser(res.user)
       setIsLoggedIn(true)
-      return { success: true, user: target }
     }
-    return { success: false, message: 'Demo user not found.' }
+    return res
   }
 
-  // Signup action with validation and new account creation
+  // Quick 1-click login as demo account
+  const loginAsDemo = (demoId = 0) => {
+    const res = authService.loginAsDemo(demoId)
+    if (res.success) {
+      setUser(res.user)
+      setIsLoggedIn(true)
+    }
+    return res
+  }
+
+  // Signup handler
   const signup = (name, email, password) => {
-    const cleanName = name.trim()
-    const cleanEmail = email.trim().toLowerCase()
-    const cleanPassword = password.trim()
-
-    // Check if email already registered
-    const exists = users.some(u => u.email.toLowerCase() === cleanEmail)
-    if (exists) {
-      return {
-        success: false,
-        message: 'An account with this email already exists. Please log in instead.',
-      }
+    const res = authService.signup(name, email, password)
+    if (res.success) {
+      setUser(res.user)
+      setIsLoggedIn(true)
+      if (res.users) setUsers(res.users)
     }
-
-    const newUser = {
-      id: Date.now(),
-      name: cleanName,
-      email: cleanEmail,
-      password: cleanPassword,
-      avatar: '🎓',
-      bio: `Hello! I am ${cleanName}, a student on SkillSwap excited to learn and share skills.`,
-      university: 'Campus Student',
-      skillsOffered: ['JavaScript', 'Web Basics'],
-      skillsWanted: ['Python', 'Graphic Design'],
-      category: 'Technology',
-      rating: 5.0,
-      exchanges: 0,
-    }
-
-    const updatedUsers = [newUser, ...users]
-    setUsers(updatedUsers)
-    safeSetStorage('skillswap_users', updatedUsers)
-
-    setUser(newUser)
-    setIsLoggedIn(true)
-    return { success: true, user: newUser }
+    return res
   }
 
-  // Update profile information and sync immediately with AuthContext & localStorage
+  // Profile update handler
   const updateProfile = (updatedFields) => {
     if (!user) return false
-
-    const updatedUser = {
-      ...user,
-      ...updatedFields,
+    const res = authService.updateProfile(user, updatedFields)
+    if (res.success) {
+      setUser(res.user)
+      if (res.users) setUsers(res.users)
+      return true
     }
-
-    setUser(updatedUser)
-    safeSetStorage('skillswap_current_user', updatedUser)
-
-    setUsers(prevUsers => {
-      const nextUsers = prevUsers.map(u => (u.id === updatedUser.id ? updatedUser : u))
-      safeSetStorage('skillswap_users', nextUsers)
-      return nextUsers
-    })
-
-    return true
+    return false
   }
 
-  // Logout action
+  // Logout handler
   const logout = () => {
+    authService.logout()
     setUser(null)
     setIsLoggedIn(false)
-    try {
-      localStorage.setItem('skillswap_is_logged_in', 'false')
-      localStorage.removeItem('skillswap_current_user')
-    } catch {
-      // ignore
-    }
   }
 
   return (
@@ -197,10 +87,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) throw new Error('useAuth must be used within AuthProvider')
-  return context
 }

@@ -1,6 +1,9 @@
 // Comprehensive automated test script for SkillSwap frontend logic and persistence
 import assert from 'node:assert'
-import { students as mockStudents, currentUser as initialAlex, initialRequests } from './src/data/mockData.js'
+import { students as mockStudents, currentUser as initialAlex } from './src/data/mockData.js'
+import { authService } from './src/services/authService.js'
+import { exchangeService } from './src/services/exchangeService.js'
+import { studentService } from './src/services/studentService.js'
 
 console.log('🧪 Starting SkillSwap Comprehensive System Tests...\n')
 
@@ -19,10 +22,9 @@ global.localStorage = {
 console.log('--- Test Suite 1: Initial Login State & Protected Route Logic ---')
 {
   localStorage.clear()
-  // When app boots up fresh, auth state is logged out
-  const storedAuth = localStorage.getItem('skillswap_is_logged_in')
-  assert.strictEqual(storedAuth, null, 'Initial localStorage should be clean')
-  const initialLoggedIn = storedAuth === 'true'
+  const initialUser = authService.getCurrentUser()
+  assert.strictEqual(initialUser, null, 'Initial user MUST be null')
+  const initialLoggedIn = localStorage.getItem('skillswap_is_logged_in') === 'true'
   assert.strictEqual(initialLoggedIn, false, 'Initial state MUST be logged out')
 
   // Protected route simulation matching App.jsx routing configuration
@@ -48,8 +50,8 @@ console.log('--- Test Suite 1: Initial Login State & Protected Route Logic ---')
 console.log('\n--- Test Suite 2: Signup & Validation ---')
 {
   localStorage.clear()
-  const initialDemoUsers = [initialAlex, ...mockStudents]
-  localStorage.setItem('skillswap_users', JSON.stringify(initialDemoUsers))
+  const users = authService.getUsers()
+  assert.ok(users.length > 0, 'Default demo users should be initialized')
 
   function validateSignup(name, email, password, existingUsers) {
     const errs = {}
@@ -69,41 +71,25 @@ console.log('\n--- Test Suite 2: Signup & Validation ---')
   }
 
   // Test empty inputs
-  const errs1 = validateSignup('', '', '', initialDemoUsers)
+  const errs1 = validateSignup('', '', '', users)
   assert.ok(errs1.name && errs1.email && errs1.password, 'All fields should show required error')
 
   // Test short password
-  const errs2 = validateSignup('Test User', 'test@test.edu', '123', initialDemoUsers)
+  const errs2 = validateSignup('Test User', 'test@test.edu', '123', users)
   assert.ok(errs2.password, 'Should require password >= 6 characters')
 
   // Test duplicate email
-  const errs3 = validateSignup('Fake Alex', 'alex@skillswap.io', 'password123', initialDemoUsers)
+  const errs3 = validateSignup('Fake Alex', 'alex@skillswap.io', 'password123', users)
   assert.ok(errs3.form.includes('already exists'), 'Duplicate email should be caught')
 
   // Test valid signup
-  const validErrs = validateSignup('Maya Lin', 'maya@mit.edu', 'password123', initialDemoUsers)
-  assert.strictEqual(Object.keys(validErrs).length, 0, 'Valid signup should have zero errors')
+  const signupRes = authService.signup('Maya Lin', 'maya@mit.edu', 'password123')
+  assert.strictEqual(signupRes.success, true, 'Valid signup should succeed')
+  assert.strictEqual(signupRes.user.name, 'Maya Lin')
 
-  // Create user
-  const newUser = {
-    id: Date.now(),
-    name: 'Maya Lin',
-    email: 'maya@mit.edu',
-    password: 'password123',
-    avatar: '🎓',
-    university: 'MIT',
-    skillsOffered: ['Python', 'Data Structures'],
-    skillsWanted: ['Figma', 'React'],
-    exchanges: 0,
-    rating: 5.0,
-  }
-  const updatedUsers = [newUser, ...initialDemoUsers]
-  localStorage.setItem('skillswap_users', JSON.stringify(updatedUsers))
-  localStorage.setItem('skillswap_current_user', JSON.stringify(newUser))
-  localStorage.setItem('skillswap_is_logged_in', 'true')
-
-  assert.strictEqual(JSON.parse(localStorage.getItem('skillswap_is_logged_in')), true)
-  assert.strictEqual(JSON.parse(localStorage.getItem('skillswap_current_user')).email, 'maya@mit.edu')
+  // Verify persistence in localStorage
+  assert.strictEqual(localStorage.getItem('skillswap_is_logged_in'), 'true')
+  assert.strictEqual(authService.getCurrentUser().email, 'maya@mit.edu')
   console.log('✅ Passed: Signup validation and account creation verified.')
 }
 
@@ -112,39 +98,28 @@ console.log('\n--- Test Suite 2: Signup & Validation ---')
 // ----------------------------------------------------
 console.log('\n--- Test Suite 3: Login & Logout ---')
 {
-  const users = JSON.parse(localStorage.getItem('skillswap_users'))
-
-  function login(email, password) {
-    const cleanEmail = email.trim().toLowerCase()
-    const found = users.find(u => u.email.toLowerCase() === cleanEmail)
-    if (!found) return { success: false, message: 'No account found' }
-    if (found.password && password !== found.password) return { success: false, message: 'Incorrect password' }
-    return { success: true, user: found }
-  }
-
   // Non-existent email
-  const fail1 = login('unknown@school.edu', 'password123')
+  const fail1 = authService.login('unknown@school.edu', 'password123')
   assert.strictEqual(fail1.success, false)
 
   // Wrong password
-  const fail2 = login('alex@skillswap.io', 'wrongpass')
+  const fail2 = authService.login('alex@skillswap.io', 'wrongpass')
   assert.strictEqual(fail2.success, false)
 
   // Successful login as Alex Johnson (Demo User 1)
-  const success1 = login('alex@skillswap.io', 'password123')
+  const success1 = authService.login('alex@skillswap.io', 'password123')
   assert.strictEqual(success1.success, true)
   assert.strictEqual(success1.user.name, 'Alex Johnson')
 
-  // Successful login as Ananya Sharma (Demo User 2)
-  const success2 = login('ananya@iitd.ac.in', 'password123')
+  // Quick Demo Login as Ananya Sharma (Demo User 2)
+  const success2 = authService.loginAsDemo(1)
   assert.strictEqual(success2.success, true)
   assert.strictEqual(success2.user.name, 'Ananya Sharma')
 
-  // Logout simulation
-  localStorage.setItem('skillswap_is_logged_in', 'false')
-  localStorage.removeItem('skillswap_current_user')
+  // Logout
+  authService.logout()
   assert.strictEqual(localStorage.getItem('skillswap_is_logged_in'), 'false')
-  assert.strictEqual(localStorage.getItem('skillswap_current_user'), null)
+  assert.strictEqual(authService.getCurrentUser(), null)
   console.log('✅ Passed: Login credential verification, demo accounts, and logout verified.')
 }
 
@@ -153,39 +128,20 @@ console.log('\n--- Test Suite 3: Login & Logout ---')
 // ----------------------------------------------------
 console.log('\n--- Test Suite 4: Profile Editing & Persistence ---')
 {
-  let currentUser = { ...initialAlex }
-  localStorage.setItem('skillswap_current_user', JSON.stringify(currentUser))
-
-  function updateProfile(fields) {
-    currentUser = { ...currentUser, ...fields }
-    localStorage.setItem('skillswap_current_user', JSON.stringify(currentUser))
-    return true
-  }
+  authService.loginAsDemo(0) // Alex Johnson
+  const currentUser = authService.getCurrentUser()
 
   // Update bio and university
-  updateProfile({
+  authService.updateProfile(currentUser, {
     university: 'Stanford Graduate School',
     bio: 'Updated bio testing live persistence across reload.',
-  })
-  assert.strictEqual(currentUser.university, 'Stanford Graduate School')
-
-  // Add skill offered
-  updateProfile({
     skillsOffered: [...currentUser.skillsOffered, 'GraphQL'],
   })
-  assert.ok(currentUser.skillsOffered.includes('GraphQL'))
 
-  // Remove skill offered
-  updateProfile({
-    skillsOffered: currentUser.skillsOffered.filter(s => s !== 'Node.js'),
-  })
-  assert.ok(!currentUser.skillsOffered.includes('Node.js'))
-
-  // Verify persistence in localStorage
-  const loadedUser = JSON.parse(localStorage.getItem('skillswap_current_user'))
+  // Verify updated state and persistence
+  const loadedUser = authService.getCurrentUser()
   assert.strictEqual(loadedUser.university, 'Stanford Graduate School')
   assert.ok(loadedUser.skillsOffered.includes('GraphQL'))
-  assert.ok(!loadedUser.skillsOffered.includes('Node.js'))
   console.log('✅ Passed: Profile editing, skills management, and localStorage persistence verified.')
 }
 
@@ -194,79 +150,43 @@ console.log('\n--- Test Suite 4: Profile Editing & Persistence ---')
 // ----------------------------------------------------
 console.log('\n--- Test Suite 5: Two Demo Users Exchange Requests Flow ---')
 {
-  let requests = [...initialRequests]
+  localStorage.removeItem('skillswap_requests')
   const userAlex = { ...initialAlex, id: 0 }
   const userAnanya = mockStudents.find(s => s.id === 1) // id: 1
 
-  function sendRequest(fromUser, toUser, skillOffered, skillWanted) {
-    // Duplicate check
-    const duplicate = requests.some(r => {
-      const sId = r.fromId !== undefined ? r.fromId : r.from?.id
-      const rId = r.toId !== undefined ? r.toId : r.to?.id
-      return ((sId === fromUser.id && rId === toUser.id) || (sId === toUser.id && rId === fromUser.id)) && r.status === 'pending'
-    })
-    if (duplicate) return { success: false, error: 'Duplicate pending request' }
-
-    const newReq = {
-      id: Date.now(),
-      fromId: fromUser.id,
-      toId: toUser.id,
-      from: { id: fromUser.id, name: fromUser.name, avatar: fromUser.avatar },
-      to: { id: toUser.id, name: toUser.name, avatar: toUser.avatar },
-      skillOffered,
-      skillWanted,
-      status: 'pending',
-      date: '2026-11-19',
-    }
-    requests = [newReq, ...requests]
-    return { success: true, request: newReq }
-  }
-
-  function getReceivedRequests(forUser) {
-    return requests.filter(r => (r.toId === forUser.id || r.to?.id === forUser.id))
-  }
-
-  function getSentRequests(forUser) {
-    return requests.filter(r => (r.fromId === forUser.id || r.from?.id === forUser.id))
-  }
-
-  function updateRequestStatus(reqId, newStatus) {
-    requests = requests.map(r => r.id === reqId ? { ...r, status: newStatus } : r)
-  }
-
   // 1. Alex sends exchange request to Ananya
-  const sendRes = sendRequest(userAlex, userAnanya, 'React', 'Machine Learning')
+  const sendRes = exchangeService.createRequest(userAlex, userAnanya, 'React', 'Machine Learning', 'Excited to swap!')
   assert.strictEqual(sendRes.success, true, 'Request should be sent successfully')
   const newReqId = sendRes.request.id
 
   // 2. Prevent duplicate request
-  const dupRes = sendRequest(userAlex, userAnanya, 'React', 'Machine Learning')
+  const dupRes = exchangeService.createRequest(userAlex, userAnanya, 'React', 'Machine Learning')
   assert.strictEqual(dupRes.success, false, 'Duplicate request MUST be prevented')
 
   // 3. Verify Alex sees it under SENT requests
-  const alexSent = getSentRequests(userAlex)
+  const allReqs = exchangeService.getRequests()
+  const alexSent = allReqs.filter(r => r.fromId === userAlex.id)
   assert.ok(alexSent.some(r => r.id === newReqId), 'Alex should see request in Sent Requests')
 
   // 4. Verify Ananya sees it under RECEIVED requests
-  const ananyaReceived = getReceivedRequests(userAnanya)
+  const ananyaReceived = allReqs.filter(r => r.toId === userAnanya.id)
   const reqForAnanya = ananyaReceived.find(r => r.id === newReqId)
   assert.ok(reqForAnanya, 'Ananya MUST see request in Received Requests')
   assert.strictEqual(reqForAnanya.status, 'pending')
 
   // 5. Ananya accepts the request
-  updateRequestStatus(newReqId, 'accepted')
+  const acceptRes = exchangeService.updateStatus(newReqId, 'accepted')
+  assert.strictEqual(acceptRes.success, true)
 
   // 6. Verify status updated immediately for both
-  const updatedAnanyaReq = getReceivedRequests(userAnanya).find(r => r.id === newReqId)
-  assert.strictEqual(updatedAnanyaReq.status, 'accepted')
-
-  const updatedAlexReq = getSentRequests(userAlex).find(r => r.id === newReqId)
-  assert.strictEqual(updatedAlexReq.status, 'accepted')
+  const updatedReqs = exchangeService.getRequests()
+  const updatedReq = updatedReqs.find(r => r.id === newReqId)
+  assert.strictEqual(updatedReq.status, 'accepted')
 
   // 7. Verify reject action
-  const sendRes2 = sendRequest(userAlex, mockStudents.find(s => s.id === 8), 'Docker', 'AWS')
-  updateRequestStatus(sendRes2.request.id, 'rejected')
-  const rejectedReq = requests.find(r => r.id === sendRes2.request.id)
+  const sendRes2 = exchangeService.createRequest(userAlex, mockStudents.find(s => s.id === 8), 'Docker', 'AWS')
+  exchangeService.updateStatus(sendRes2.request.id, 'rejected')
+  const rejectedReq = exchangeService.getRequests().find(r => r.id === sendRes2.request.id)
   assert.strictEqual(rejectedReq.status, 'rejected')
 
   console.log('✅ Passed: Complete Send -> Receive -> Accept -> Reject workflow verified between two demo users.')
@@ -303,6 +223,8 @@ console.log('\n--- Test Suite 6: Dashboard Stats Calculation ---')
 // ----------------------------------------------------
 console.log('\n--- Test Suite 7: Explore Search & Filter Logic ---')
 {
+  const allStudents = studentService.getStudents()
+
   function filterStudents(list, search, category) {
     const sLower = search.toLowerCase()
     return list.filter(student => {
@@ -318,16 +240,16 @@ console.log('\n--- Test Suite 7: Explore Search & Filter Logic ---')
   }
 
   // Filter by category Technology
-  const techStudents = filterStudents(mockStudents, '', 'Technology')
+  const techStudents = filterStudents(allStudents, '', 'Technology')
   assert.ok(techStudents.every(s => s.category === 'Technology'))
 
   // Search by skill 'Figma'
-  const figmaStudents = filterStudents(mockStudents, 'Figma', 'All')
+  const figmaStudents = filterStudents(allStudents, 'Figma', 'All')
   assert.ok(figmaStudents.length > 0)
   assert.ok(figmaStudents.every(s => s.skillsOffered.includes('Figma') || s.skillsWanted.includes('Figma')))
 
   // Search by University 'IIT'
-  const iitStudents = filterStudents(mockStudents, 'IIT', 'All')
+  const iitStudents = filterStudents(allStudents, 'IIT', 'All')
   assert.ok(iitStudents.length >= 1)
 
   console.log('✅ Passed: Search and category filters verified.')

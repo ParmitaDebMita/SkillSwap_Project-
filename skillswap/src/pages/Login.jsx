@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../hooks/useAuth'
 import './Auth.css'
 
 export default function Login() {
@@ -131,14 +131,14 @@ export default function Login() {
                   className="quick-demo-btn"
                   onClick={() => handleQuickDemo(0, 'alex@skillswap.io', 'password123')}
                 >
-                  🚀 User 1: Alex Johnson
+                  🚀 User 1: Alex Johnson (Stanford)
                 </button>
                 <button
                   type="button"
                   className="quick-demo-btn"
                   onClick={() => handleQuickDemo(1, 'ananya@iitd.ac.in', 'password123')}
                 >
-                  👩‍💻 User 2: Ananya Sharma
+                  👩‍💻 User 2: Ananya Sharma (IIT Delhi)
                 </button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useData } from '../context/DataContext'
-import { useAuth } from '../context/AuthContext'
+import { useData } from '../hooks/useData'
+import { useAuth } from '../hooks/useAuth'
 import RequestCard from '../components/RequestCard'
 import './Requests.css'
 
@@ -55,7 +55,7 @@ export default function Requests() {
             <span className="tab-counter">
               {receivedCount}
               {pendingReceived > 0 && (
-                <span className="tab-pending-dot" title={`${pendingReceived} pending requests`}></span>
+                <span className="tab-pending-dot" title={`${pendingReceived} pending proposals`}></span>
               )}
             </span>
           </button>

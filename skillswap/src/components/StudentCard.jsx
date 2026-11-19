@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useData } from '../context/DataContext'
-import { useAuth } from '../context/AuthContext'
+import { useNavigate, Link } from 'react-router-dom'
+import { useData } from '../hooks/useData'
+import { useAuth } from '../hooks/useAuth'
 import './StudentCard.css'
 
 export default function StudentCard({ student }) {
@@ -11,12 +11,15 @@ export default function StudentCard({ student }) {
 
   const [showModal, setShowModal] = useState(false)
   const [selectedOffer, setSelectedOffer] = useState('')
+  const [customOfferInput, setCustomOfferInput] = useState('')
   const [selectedWant, setSelectedWant] = useState('')
   const [customMsg, setCustomMsg] = useState('')
   const [sent, setSent] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
   const isSelf = user && user.id === student.id
+  const userHasOfferedSkills = user?.skillsOffered && user.skillsOffered.length > 0
+  const availableOfferSkills = userHasOfferedSkills ? user.skillsOffered : []
 
   const handleOpenModal = () => {
     if (!isLoggedIn) {
@@ -26,13 +29,27 @@ export default function StudentCard({ student }) {
     if (isSelf) return
     setErrorMsg('')
     setCustomMsg('')
+    setSelectedOffer(availableOfferSkills[0] || '')
+    setSelectedWant(student.skillsOffered?.[0] || '')
     setShowModal(true)
   }
 
   const handleSend = () => {
-    if (!selectedOffer || !selectedWant) return
+    const finalOfferSkill = (selectedOffer === '__custom__' ? customOfferInput : selectedOffer).trim()
+    const finalWantSkill = selectedWant.trim()
+
+    if (!finalOfferSkill) {
+      setErrorMsg('Please specify a skill you can teach.')
+      return
+    }
+
+    if (!finalWantSkill) {
+      setErrorMsg('Please select a skill you want to learn.')
+      return
+    }
+
     setErrorMsg('')
-    const res = sendRequest(student.id, selectedOffer, selectedWant, customMsg)
+    const res = sendRequest(student.id, finalOfferSkill, finalWantSkill, customMsg)
     if (res && res.success) {
       setSent(true)
       setTimeout(() => {
@@ -40,16 +57,13 @@ export default function StudentCard({ student }) {
         setSent(false)
         setSelectedOffer('')
         setSelectedWant('')
+        setCustomOfferInput('')
         setCustomMsg('')
       }, 1500)
     } else {
       setErrorMsg(res?.error || 'A pending exchange request already exists with this student.')
     }
   }
-
-  const availableOfferSkills = user?.skillsOffered?.length
-    ? user.skillsOffered
-    : ['React', 'Node.js', 'TypeScript', 'JavaScript']
 
   return (
     <>
@@ -105,7 +119,7 @@ export default function StudentCard({ student }) {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
+            <button className="modal-close" onClick={() => setShowModal(false)} aria-label="Close modal">✕</button>
             <div className="modal-header">
               <span className="modal-avatar">{student.avatar}</span>
               <div>
@@ -126,24 +140,75 @@ export default function StudentCard({ student }) {
                     ⚠️ {errorMsg}
                   </div>
                 )}
+
                 <div className="modal-field">
                   <label>I will teach:</label>
-                  <select value={selectedOffer} onChange={e => setSelectedOffer(e.target.value)}>
-                    <option value="">Select a skill you can offer</option>
-                    {availableOfferSkills.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  {availableOfferSkills.length > 0 ? (
+                    <>
+                      <select
+                        value={selectedOffer}
+                        onChange={e => setSelectedOffer(e.target.value)}
+                      >
+                        {availableOfferSkills.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                        <option value="__custom__">+ Enter another skill...</option>
+                      </select>
+                      {selectedOffer === '__custom__' && (
+                        <input
+                          type="text"
+                          placeholder="Type custom skill to teach..."
+                          value={customOfferInput}
+                          onChange={e => setCustomOfferInput(e.target.value)}
+                          style={{
+                            marginTop: '8px',
+                            width: '100%',
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--bg-input)',
+                            color: 'var(--text-primary)',
+                            fontSize: '0.9rem',
+                          }}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Type a skill you can teach (e.g. Python, React)..."
+                        value={customOfferInput}
+                        onChange={e => {
+                          setCustomOfferInput(e.target.value)
+                          setSelectedOffer('__custom__')
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '10px',
+                          border: '1px solid var(--border)',
+                          background: 'var(--bg-input)',
+                          color: 'var(--text-primary)',
+                          fontSize: '0.9rem',
+                        }}
+                      />
+                      <small style={{ display: 'block', marginTop: '4px', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                        Tip: You can also add skills permanently in <Link to="/profile">your profile</Link>.
+                      </small>
+                    </div>
+                  )}
                 </div>
+
                 <div className="modal-field">
-                  <label>I want to learn:</label>
+                  <label>I want to learn from {student.name}:</label>
                   <select value={selectedWant} onChange={e => setSelectedWant(e.target.value)}>
-                    <option value="">Select a skill you want to learn</option>
                     {student.skillsOffered?.map(s => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </div>
+
                 <div className="modal-field">
                   <label>Proposal Message (Optional):</label>
                   <input
@@ -162,14 +227,13 @@ export default function StudentCard({ student }) {
                     }}
                   />
                 </div>
+
                 <button
                   className="btn btn-primary"
                   onClick={handleSend}
-                  disabled={!selectedOffer || !selectedWant}
                   style={{
                     width: '100%',
                     marginTop: '12px',
-                    opacity: !selectedOffer || !selectedWant ? 0.6 : 1,
                   }}
                 >
                   Send Exchange Request

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../hooks/useAuth'
 import ThemeToggle from './ThemeToggle'
 import './Navbar.css'
 import { useState } from 'react'
@@ -23,7 +23,6 @@ export default function Navbar() {
   const handleAnchorClick = (e, targetId) => {
     closeMobile()
     if (location.pathname !== '/') {
-      // Navigate to home first, then scroll
       navigate('/')
       setTimeout(() => {
         const el = document.getElementById(targetId)
