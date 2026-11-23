@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useData } from '../hooks/useData'
+import { moderationService } from '../services/moderationService'
 import './Profile.css'
 
 export default function Profile() {
@@ -15,12 +16,25 @@ export default function Profile() {
   const [saveError, setSaveError] = useState('')
 
   const [newOfferedSkill, setNewOfferedSkill] = useState('')
+  const [offeredLevel, setOfferedLevel] = useState('Intermediate')
   const [newWantedSkill, setNewWantedSkill] = useState('')
+  const [wantedLevel, setWantedLevel] = useState('Beginner')
+  const [newAvail, setNewAvail] = useState('')
   const [savedSuccess, setSavedSuccess] = useState(false)
 
-  // Current user skills are derived directly from user object (single source of truth)
+  // Blocked users list
+  const [blockedUsers, setBlockedUsers] = useState([])
+  const [unblockingId, setUnblockingId] = useState(null)
+
+  // Load blocked users on mount
+  useEffect(() => {
+    moderationService.getBlockedUsers().then(setBlockedUsers)
+  }, [])
+
+  // Current user skills and availability derived directly from user object
   const skillsOffered = user?.skillsOffered || []
   const skillsWanted = user?.skillsWanted || []
+  const availability = user?.availability || []
   const exchangesCount = user?.exchanges || 0
   const ratingValue = user?.rating !== undefined ? Number(user.rating).toFixed(1) : '5.0'
 
@@ -40,11 +54,13 @@ export default function Profile() {
   const handleAddOffered = async (e) => {
     e.preventDefault()
     const clean = newOfferedSkill.trim()
-    if (!clean || skillsOffered.includes(clean)) {
+    if (!clean) return
+    const skillFormatted = clean.includes('(') ? clean : `${clean} (${offeredLevel})`
+    if (skillsOffered.includes(skillFormatted)) {
       setNewOfferedSkill('')
       return
     }
-    const nextSkills = [...skillsOffered, clean]
+    const nextSkills = [...skillsOffered, skillFormatted]
     await updateProfile({ skillsOffered: nextSkills })
     reloadStudents()
     setNewOfferedSkill('')
@@ -60,11 +76,13 @@ export default function Profile() {
   const handleAddWanted = async (e) => {
     e.preventDefault()
     const clean = newWantedSkill.trim()
-    if (!clean || skillsWanted.includes(clean)) {
+    if (!clean) return
+    const skillFormatted = clean.includes('(') ? clean : `${clean} (${wantedLevel})`
+    if (skillsWanted.includes(skillFormatted)) {
       setNewWantedSkill('')
       return
     }
-    const nextSkills = [...skillsWanted, clean]
+    const nextSkills = [...skillsWanted, skillFormatted]
     await updateProfile({ skillsWanted: nextSkills })
     reloadStudents()
     setNewWantedSkill('')
@@ -75,6 +93,35 @@ export default function Profile() {
     const nextSkills = skillsWanted.filter(s => s !== skillToRemove)
     await updateProfile({ skillsWanted: nextSkills })
     reloadStudents()
+  }
+
+  const handleAddAvail = async (e) => {
+    e.preventDefault()
+    const clean = newAvail.trim()
+    if (!clean || availability.includes(clean)) {
+      setNewAvail('')
+      return
+    }
+    const nextAvail = [...availability, clean]
+    await updateProfile({ availability: nextAvail })
+    reloadStudents()
+    setNewAvail('')
+    showSuccess()
+  }
+
+  const handleRemoveAvail = async (availToRemove) => {
+    const nextAvail = availability.filter(a => a !== availToRemove)
+    await updateProfile({ availability: nextAvail })
+    reloadStudents()
+  }
+
+  const handleUnblock = async (blockedUserId) => {
+    setUnblockingId(blockedUserId)
+    const res = await moderationService.unblockUser(blockedUserId)
+    if (res.success) {
+      setBlockedUsers(prev => prev.filter(u => u.id !== blockedUserId))
+    }
+    setUnblockingId(null)
   }
 
   const handleSave = async () => {
@@ -94,6 +141,20 @@ export default function Profile() {
     } else {
       setSaveError('Failed to save profile. Please try again.')
     }
+  }
+
+  // Parse skill label into name and level tag
+  const renderSkillText = (skill) => {
+    const match = skill.match(/^(.*?)\s*\((Beginner|Intermediate|Advanced)\)$/i)
+    if (match) {
+      return (
+        <>
+          <span>{match[1]}</span>
+          <span className={`chip-level-badge level-${match[2].toLowerCase()}`}>{match[2]}</span>
+        </>
+      )
+    }
+    return <span>{skill}</span>
   }
 
   return (
@@ -140,6 +201,20 @@ export default function Profile() {
                   {user?.bio ||
                     'No bio added yet. Tell other students what you are studying and what skills you love to build!'}
                 </p>
+              </div>
+
+              {/* Availability Preview */}
+              <div className="profile-avail-preview">
+                <h4>Available Times</h4>
+                {availability.length > 0 ? (
+                  <div className="avail-preview-tags">
+                    {availability.map((a) => (
+                      <span key={a} className="avail-chip">🕒 {a}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="avail-empty-hint">No schedule set yet.</p>
+                )}
               </div>
 
               <button
@@ -218,6 +293,53 @@ export default function Profile() {
               </div>
             )}
 
+            {/* Availability Management */}
+            <div className="profile-card">
+              <div className="profile-card-header">
+                <div>
+                  <h3 className="card-title">
+                    <span className="skill-dot dot-primary"></span> My Availability & Schedule
+                  </h3>
+                  <p className="card-subtitle">Set days and time slots when you are free to exchange skills</p>
+                </div>
+                <span className="badge badge-primary">{availability.length} Slots</span>
+              </div>
+
+              <div className="skills-badge-list">
+                {availability.length > 0 ? (
+                  availability.map((avail) => (
+                    <span key={avail} className="skill-chip chip-primary">
+                      🕒 {avail}
+                      <button
+                        type="button"
+                        className="chip-remove"
+                        onClick={() => handleRemoveAvail(avail)}
+                        title={`Remove ${avail}`}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                    No availability set. Add time slots below (e.g. "Weekday Evenings", "Saturday 2-5 PM").
+                  </p>
+                )}
+              </div>
+
+              <form className="add-skill-bar" onSubmit={handleAddAvail}>
+                <input
+                  type="text"
+                  placeholder="e.g. Weekdays after 5 PM, Weekends, Monday 2-4 PM..."
+                  value={newAvail}
+                  onChange={(e) => setNewAvail(e.target.value)}
+                />
+                <button type="submit" className="btn btn-primary btn-sm">
+                  + Add Availability
+                </button>
+              </form>
+            </div>
+
             {/* Skills Offered Card */}
             <div className="profile-card">
               <div className="profile-card-header">
@@ -225,7 +347,7 @@ export default function Profile() {
                   <h3 className="card-title">
                     <span className="skill-dot dot-primary"></span> Skills I Offer (Can Teach)
                   </h3>
-                  <p className="card-subtitle">Skills and topics you can share with other students</p>
+                  <p className="card-subtitle">Skills and proficiency level you can share with peers</p>
                 </div>
                 <span className="badge badge-primary">{skillsOffered.length} Skills</span>
               </div>
@@ -234,7 +356,7 @@ export default function Profile() {
                 {skillsOffered.length > 0 ? (
                   skillsOffered.map((skill) => (
                     <span key={skill} className="skill-chip chip-primary">
-                      {skill}
+                      {renderSkillText(skill)}
                       <button
                         type="button"
                         className="chip-remove"
@@ -255,10 +377,19 @@ export default function Profile() {
               <form className="add-skill-bar" onSubmit={handleAddOffered}>
                 <input
                   type="text"
-                  placeholder="Add a new skill you can teach (e.g. Tailwind, Python)..."
+                  placeholder="Skill name (e.g. Python, UI Design)..."
                   value={newOfferedSkill}
                   onChange={(e) => setNewOfferedSkill(e.target.value)}
                 />
+                <select
+                  value={offeredLevel}
+                  onChange={(e) => setOfferedLevel(e.target.value)}
+                  className="skill-level-select"
+                >
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                </select>
                 <button type="submit" className="btn btn-primary btn-sm">
                   + Add Skill
                 </button>
@@ -272,7 +403,7 @@ export default function Profile() {
                   <h3 className="card-title">
                     <span className="skill-dot dot-secondary"></span> Skills I Want to Learn
                   </h3>
-                  <p className="card-subtitle">Topics and abilities you want to acquire from peers</p>
+                  <p className="card-subtitle">Topics and target proficiency level you want to acquire</p>
                 </div>
                 <span className="badge badge-secondary">{skillsWanted.length} Skills</span>
               </div>
@@ -281,7 +412,7 @@ export default function Profile() {
                 {skillsWanted.length > 0 ? (
                   skillsWanted.map((skill) => (
                     <span key={skill} className="skill-chip chip-secondary">
-                      {skill}
+                      {renderSkillText(skill)}
                       <button
                         type="button"
                         className="chip-remove"
@@ -302,14 +433,62 @@ export default function Profile() {
               <form className="add-skill-bar" onSubmit={handleAddWanted}>
                 <input
                   type="text"
-                  placeholder="Add a skill you want to learn (e.g. Graphic Design, Figma)..."
+                  placeholder="Skill name (e.g. Machine Learning, Figma)..."
                   value={newWantedSkill}
                   onChange={(e) => setNewWantedSkill(e.target.value)}
                 />
+                <select
+                  value={wantedLevel}
+                  onChange={(e) => setWantedLevel(e.target.value)}
+                  className="skill-level-select"
+                >
+                  <option value="Beginner">Beginner</option>
+                  <option value="Intermediate">Intermediate</option>
+                  <option value="Advanced">Advanced</option>
+                </select>
                 <button type="submit" className="btn btn-secondary btn-sm">
                   + Add Skill
                 </button>
               </form>
+            </div>
+
+            {/* Blocked Users */}
+            <div className="profile-card">
+              <div className="profile-card-header">
+                <div>
+                  <h3 className="card-title">
+                    <span className="skill-dot dot-secondary"></span> Blocked Users
+                  </h3>
+                  <p className="card-subtitle">Students you have blocked. Unblocking allows both sides to interact again.</p>
+                </div>
+                <span className="badge badge-warning">{blockedUsers.length} Blocked</span>
+              </div>
+
+              {blockedUsers.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  You have not blocked anyone. Use the ⋮ menu on a student card to block.
+                </p>
+              ) : (
+                <ul className="blocked-users-list">
+                  {blockedUsers.map((u) => (
+                    <li key={u.id} className="blocked-user-row">
+                      <span className="blocked-user-avatar">{u.avatar || '🎓'}</span>
+                      <div className="blocked-user-info">
+                        <strong>{u.name}</strong>
+                        {u.university && <small>{u.university}</small>}
+                      </div>
+                      <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => handleUnblock(u.id)}
+                        disabled={unblockingId === u.id}
+                        title={`Unblock ${u.name}`}
+                      >
+                        {unblockingId === u.id ? '⏳ Unblocking…' : '🔓 Unblock'}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* Real Student Achievements */}

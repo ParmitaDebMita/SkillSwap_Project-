@@ -76,7 +76,7 @@ export default function Requests() {
         {/* Sub-Filters: Status */}
         <div className="status-filters-row">
           <span className="filter-label">Filter by status:</span>
-          {['all', 'pending', 'accepted', 'rejected'].map(status => (
+          {['all', 'pending', 'accepted', 'completed', 'rejected'].map(status => (
             <button
               key={status}
               className={`status-chip ${statusFilter === status ? 'active' : ''}`}

@@ -40,6 +40,8 @@ class UserResponse(BaseModel):
     category: str = "Technology"
     rating: float = 5.0
     exchanges: int = 0
+    availability: List[str] = []
+    blockedUsers: List[str] = []
 
     # NOTE: password is intentionally excluded from this model
 
@@ -63,4 +65,6 @@ def doc_to_user(doc: dict) -> UserResponse:
         category=doc.get("category", "Technology"),
         rating=doc.get("rating", 5.0),
         exchanges=doc.get("exchanges", 0),
+        availability=doc.get("availability", []),
+        blockedUsers=doc.get("blockedUsers", []),
     )

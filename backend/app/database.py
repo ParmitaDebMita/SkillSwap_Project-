@@ -23,6 +23,20 @@ async def create_indexes():
     await db.exchanges.create_index("from_id")
     await db.exchanges.create_index("to_id")
     await db.exchanges.create_index([("from_id", 1), ("to_id", 1), ("status", 1)])
+    # Messages: index on exchange_id and timestamp
+    await db.messages.create_index([("exchange_id", 1), ("timestamp", 1)])
+    await db.messages.create_index("sender_id")
+    await db.messages.create_index("receiver_id")
+    # Connections: index on exchange_id
+    await db.connections.create_index("exchange_id", unique=True)
+    await db.connections.create_index([("user1_id", 1), ("user2_id", 1)])
+    # Notifications: index on user_id and timestamp
+    await db.notifications.create_index([("user_id", 1), ("timestamp", -1)])
+    # Reviews: compound unique index preventing duplicate reviews per exchange
+    await db.reviews.create_index([("exchange_id", 1), ("reviewer_id", 1)], unique=True)
+    await db.reviews.create_index("reviewee_id")
+    # Reports
+    await db.reports.create_index("reported_user_id")
 
 
 async def close_connection():

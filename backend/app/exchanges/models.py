@@ -1,5 +1,4 @@
 from typing import Literal, Optional
-
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -11,7 +10,22 @@ class CreateExchangeRequest(BaseModel):
 
 
 class UpdateStatusRequest(BaseModel):
-    status: Literal["accepted", "rejected"]
+    status: Literal["accepted", "rejected", "completed"]
+
+
+class ScheduleSessionRequest(BaseModel):
+    date: str
+    time: str
+    note: Optional[str] = ""
+
+
+class SessionInfo(BaseModel):
+    date: Optional[str] = None
+    time: Optional[str] = None
+    status: Optional[str] = "scheduled"  # scheduled, rescheduled, cancelled, completed
+    note: Optional[str] = ""
+    updatedAt: Optional[str] = None
+    updatedBy: Optional[str] = None
 
 
 class PersonSummary(BaseModel):
@@ -40,11 +54,25 @@ class ExchangeResponse(BaseModel):
     status: str
     date: str
     message: str
+    session: Optional[SessionInfo] = None
 
 
 def doc_to_exchange(doc: dict) -> ExchangeResponse:
     from_data = doc.get("from", {})
     to_data = doc.get("to", {})
+    session_data = doc.get("session")
+
+    session_obj = None
+    if session_data and isinstance(session_data, dict):
+        session_obj = SessionInfo(
+            date=session_data.get("date"),
+            time=session_data.get("time"),
+            status=session_data.get("status", "scheduled"),
+            note=session_data.get("note", ""),
+            updatedAt=session_data.get("updatedAt") or session_data.get("updated_at"),
+            updatedBy=session_data.get("updatedBy") or session_data.get("updated_by"),
+        )
+
     return ExchangeResponse.model_validate({
         "id": str(doc["_id"]),
         "fromId": str(doc.get("from_id", "")),
@@ -68,4 +96,5 @@ def doc_to_exchange(doc: dict) -> ExchangeResponse:
         "status": doc.get("status", "pending"),
         "date": doc.get("date", ""),
         "message": doc.get("message", ""),
+        "session": session_obj,
     })

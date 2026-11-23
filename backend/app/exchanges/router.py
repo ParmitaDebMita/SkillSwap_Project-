@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.auth.utils import get_current_user
 from app.database import get_database
+from app.notifications.router import create_notification
 from app.exchanges.models import (
     CreateExchangeRequest,
     ExchangeResponse,
+    ScheduleSessionRequest,
     UpdateStatusRequest,
     doc_to_exchange,
 )
@@ -117,6 +119,15 @@ async def create_exchange(
     result = await db.exchanges.insert_one(new_exchange)
     new_exchange["_id"] = result.inserted_id
 
+    # Create notification for receiver
+    await create_notification(
+        user_id=body.toId,
+        title="📥 New Skill Exchange Request",
+        message=f"{current_user.get('name', 'A peer')} proposed: {body.skillOffered} ⇄ {body.skillWanted}",
+        link="/requests",
+        notif_type="request",
+    )
+
     return doc_to_exchange(new_exchange)
 
 
@@ -127,8 +138,9 @@ async def update_exchange_status(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Accept or reject an exchange request.
-    Only the RECEIVER (to_id) may change the status.
+    Accept, reject, or mark an exchange as completed.
+    - Only the RECEIVER (to_id) can accept or reject a pending request.
+    - EITHER participant can mark an accepted exchange as completed.
     """
     db = get_database()
     current_id_str = str(current_user["_id"])
@@ -148,14 +160,46 @@ async def update_exchange_status(
             detail="Exchange request not found.",
         )
 
-    # Only the receiver can accept/reject
-    if exchange_doc.get("to_id") != current_id_str:
+    from_id_str = str(exchange_doc.get("from_id", ""))
+    to_id_str = str(exchange_doc.get("to_id", ""))
+
+    # Handling 'completed' status
+    if body.status == "completed":
+        if current_id_str not in (from_id_str, to_id_str):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to complete this exchange.",
+            )
+        if exchange_doc.get("status") != "accepted":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Only accepted exchanges can be marked as completed. Current status: {exchange_doc.get('status')}.",
+            )
+
+        updated_doc = await db.exchanges.find_one_and_update(
+            {"_id": ex_oid},
+            {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc)}},
+            return_document=True,
+        )
+
+        other_id = from_id_str if current_id_str == to_id_str else to_id_str
+        await create_notification(
+            user_id=other_id,
+            title="🎉 Exchange Completed",
+            message=f"{current_user.get('name', 'Peer')} marked your exchange as completed! Please share your feedback.",
+            link="/requests",
+            notif_type="complete",
+        )
+        return doc_to_exchange(updated_doc)
+
+    # For 'accepted' or 'rejected': Only receiver can update
+    if to_id_str != current_id_str:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the receiver of this request can accept or reject it.",
         )
 
-    # Must be pending to change status
+    # Must be pending to change to accepted/rejected
     if exchange_doc.get("status") != "pending":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -169,9 +213,8 @@ async def update_exchange_status(
         return_document=True,
     )
 
-    # If accepted: increment exchanges counter for both participants
+    # If accepted: increment exchanges counter for both participants and create connection
     if body.status == "accepted":
-        from_id_str = exchange_doc.get("from_id", "")
         try:
             from_oid = ObjectId(from_id_str)
             to_oid = ObjectId(current_id_str)
@@ -179,7 +222,156 @@ async def update_exchange_status(
                 {"_id": {"$in": [from_oid, to_oid]}},
                 {"$inc": {"exchanges": 1}},
             )
+            # Automatically create or enable private connection between the two students
+            await db.connections.update_one(
+                {"exchange_id": str(ex_oid)},
+                {
+                    "$set": {
+                        "exchange_id": str(ex_oid),
+                        "user1_id": from_id_str,
+                        "user2_id": current_id_str,
+                        "connected_at": datetime.now(timezone.utc),
+                        "status": "connected",
+                    }
+                },
+                upsert=True,
+            )
         except Exception:
-            pass  # Non-critical — exchange is updated regardless
+            pass
+
+        # Notify sender
+        await create_notification(
+            user_id=from_id_str,
+            title="✅ Exchange Request Accepted!",
+            message=f"{current_user.get('name', 'Peer')} accepted your exchange proposal! You can now chat and schedule a session.",
+            link="/requests",
+            notif_type="accept",
+        )
+
+    elif body.status == "rejected":
+        # Notify sender
+        await create_notification(
+            user_id=from_id_str,
+            title="Exchange Request Declined",
+            message=f"{current_user.get('name', 'Peer')} was unable to accept your skill exchange proposal.",
+            link="/requests",
+            notif_type="info",
+        )
+
+    return doc_to_exchange(updated_doc)
+
+
+@router.post("/{exchange_id}/schedule", response_model=ExchangeResponse, response_model_by_alias=True)
+async def schedule_session(
+    exchange_id: str,
+    body: ScheduleSessionRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Schedule or reschedule a learning session inside an accepted exchange.
+    """
+    db = get_database()
+    current_id_str = str(current_user["_id"])
+
+    try:
+        ex_oid = ObjectId(exchange_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid exchange ID.")
+
+    exchange_doc = await db.exchanges.find_one({"_id": ex_oid})
+    if not exchange_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exchange not found.")
+
+    from_id = str(exchange_doc.get("from_id"))
+    to_id = str(exchange_doc.get("to_id"))
+
+    if current_id_str not in (from_id, to_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized for this exchange.")
+
+    if exchange_doc.get("status") not in ("accepted", "completed"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sessions can only be scheduled for accepted exchanges. Current status: {exchange_doc.get('status')}.",
+        )
+
+    is_reschedule = bool(exchange_doc.get("session"))
+    session_status = "rescheduled" if is_reschedule else "scheduled"
+
+    session_payload = {
+        "date": body.date.strip(),
+        "time": body.time.strip(),
+        "note": body.note.strip() if body.note else "",
+        "status": session_status,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "updatedBy": current_id_str,
+    }
+
+    updated_doc = await db.exchanges.find_one_and_update(
+        {"_id": ex_oid},
+        {"$set": {"session": session_payload}},
+        return_document=True,
+    )
+
+    # Notify peer
+    other_id = to_id if current_id_str == from_id else from_id
+    action_label = "Rescheduled" if is_reschedule else "Scheduled"
+    await create_notification(
+        user_id=other_id,
+        title=f"📅 Session {action_label}",
+        message=f"{current_user.get('name', 'Peer')} {action_label.lower()} a session for {body.date} at {body.time}.",
+        link="/requests",
+        notif_type="session",
+    )
+
+    return doc_to_exchange(updated_doc)
+
+
+@router.post("/{exchange_id}/schedule/cancel", response_model=ExchangeResponse, response_model_by_alias=True)
+async def cancel_session(
+    exchange_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Cancel a scheduled learning session.
+    """
+    db = get_database()
+    current_id_str = str(current_user["_id"])
+
+    try:
+        ex_oid = ObjectId(exchange_id)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid exchange ID.")
+
+    exchange_doc = await db.exchanges.find_one({"_id": ex_oid})
+    if not exchange_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exchange not found.")
+
+    from_id = str(exchange_doc.get("from_id"))
+    to_id = str(exchange_doc.get("to_id"))
+
+    if current_id_str not in (from_id, to_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized for this exchange.")
+
+    if not exchange_doc.get("session"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No session found to cancel.")
+
+    updated_doc = await db.exchanges.find_one_and_update(
+        {"_id": ex_oid},
+        {"$set": {
+            "session.status": "cancelled",
+            "session.updatedAt": datetime.now(timezone.utc).isoformat(),
+            "session.updatedBy": current_id_str,
+        }},
+        return_document=True,
+    )
+
+    other_id = to_id if current_id_str == from_id else from_id
+    await create_notification(
+        user_id=other_id,
+        title="Session Cancelled",
+        message=f"{current_user.get('name', 'Peer')} cancelled the scheduled session.",
+        link="/requests",
+        notif_type="session",
+    )
 
     return doc_to_exchange(updated_doc)

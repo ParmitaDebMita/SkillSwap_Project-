@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useData } from '../hooks/useData'
 import { useAuth } from '../hooks/useAuth'
+import { moderationService } from '../services/moderationService'
 import './StudentCard.css'
 
 export default function StudentCard({ student }) {
@@ -17,6 +18,13 @@ export default function StudentCard({ student }) {
   const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+
+  // Moderation state
+  const [showMenu, setShowMenu] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportReason, setReportReason] = useState('Inappropriate behavior')
+  const [reportDetails, setReportDetails] = useState('')
+  const [modFeedback, setModFeedback] = useState('')
 
   const isSelf = user && user.id === student.id
   const userHasOfferedSkills = user?.skillsOffered && user.skillsOffered.length > 0
@@ -52,7 +60,6 @@ export default function StudentCard({ student }) {
     setErrorMsg('')
     setSending(true)
 
-    // Pass student.id (the backend MongoDB string id)
     const res = await sendRequest(student.id, finalOfferSkill, finalWantSkill, customMsg)
     setSending(false)
 
@@ -71,6 +78,43 @@ export default function StudentCard({ student }) {
     }
   }
 
+  const handleReport = async (e) => {
+    e.preventDefault()
+    const res = await moderationService.reportUser({
+      reportedUserId: student.id,
+      reason: reportReason,
+      details: reportDetails,
+    })
+    setShowReportModal(false)
+    setModFeedback(res.success ? '✓ Report submitted.' : `⚠️ ${res.error}`)
+    setTimeout(() => setModFeedback(''), 4000)
+  }
+
+  const handleBlock = async () => {
+    if (!window.confirm(`Are you sure you want to block ${student.name}?`)) return
+    const res = await moderationService.blockUser(student.id)
+    setShowMenu(false)
+    setModFeedback(res.success ? `✓ ${student.name} blocked.` : `⚠️ ${res.error}`)
+    setTimeout(() => setModFeedback(''), 4000)
+  }
+
+  const renderSkillBadge = (skill, colorClass) => {
+    const match = skill.match(/^(.*?)\s*\((Beginner|Intermediate|Advanced)\)$/i)
+    if (match) {
+      return (
+        <span key={skill} className={`badge ${colorClass} skill-chip-lvl`}>
+          <span>{match[1]}</span>
+          <span className={`tag-lvl lvl-${match[2].toLowerCase()}`}>{match[2]}</span>
+        </span>
+      )
+    }
+    return (
+      <span key={skill} className={`badge ${colorClass}`}>
+        {skill}
+      </span>
+    )
+  }
+
   return (
     <>
       <div className="student-card">
@@ -82,28 +126,69 @@ export default function StudentCard({ student }) {
             </h3>
             <p className="student-university">{student.university}</p>
           </div>
-          <div className="student-rating">
-            <span>⭐</span> {student.rating !== undefined ? Number(student.rating).toFixed(1) : '5.0'}
+          <div className="student-card-top-right">
+            <div className="student-rating">
+              <span>⭐</span> {student.rating !== undefined ? Number(student.rating).toFixed(1) : '5.0'}
+            </div>
+            {!isSelf && isLoggedIn && (
+              <div className="student-mod-menu-wrap">
+                <button
+                  className="btn-mod-menu"
+                  onClick={() => setShowMenu(!showMenu)}
+                  title="Options"
+                  aria-label="Options"
+                >
+                  ⋮
+                </button>
+                {showMenu && (
+                  <div className="student-mod-dropdown">
+                    <button
+                      onClick={() => {
+                        setShowMenu(false)
+                        setShowReportModal(true)
+                      }}
+                    >
+                      🚩 Report
+                    </button>
+                    <button onClick={handleBlock} className="text-danger">
+                      🚫 Block
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
+        {modFeedback && <div className="student-mod-alert animate-fade-in">{modFeedback}</div>}
+
         <p className="student-bio">{student.bio}</p>
+
+        {/* Availability */}
+        {student.availability && student.availability.length > 0 && (
+          <div className="student-availability-row">
+            <span className="avail-label">🕒 Available:</span>
+            <div className="avail-tags-wrap">
+              {student.availability.map((a) => (
+                <span key={a} className="avail-tag">
+                  {a}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="student-skills">
           <div className="skills-group">
             <span className="skills-label">Teaches</span>
             <div className="skill-tags">
-              {student.skillsOffered?.map(skill => (
-                <span key={skill} className="badge badge-primary">{skill}</span>
-              ))}
+              {student.skillsOffered?.map((skill) => renderSkillBadge(skill, 'badge-primary'))}
             </div>
           </div>
           <div className="skills-group">
             <span className="skills-label">Wants to Learn</span>
             <div className="skill-tags">
-              {student.skillsWanted?.map(skill => (
-                <span key={skill} className="badge badge-secondary">{skill}</span>
-              ))}
+              {student.skillsWanted?.map((skill) => renderSkillBadge(skill, 'badge-secondary'))}
             </div>
           </div>
         </div>
@@ -122,9 +207,10 @@ export default function StudentCard({ student }) {
         </div>
       </div>
 
+      {/* Exchange Proposal Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => !sending && setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
             <button
               className="modal-close"
               onClick={() => !sending && setShowModal(false)}
@@ -160,11 +246,13 @@ export default function StudentCard({ student }) {
                     <>
                       <select
                         value={selectedOffer}
-                        onChange={e => setSelectedOffer(e.target.value)}
+                        onChange={(e) => setSelectedOffer(e.target.value)}
                         disabled={sending}
                       >
-                        {availableOfferSkills.map(s => (
-                          <option key={s} value={s}>{s}</option>
+                        {availableOfferSkills.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
                         ))}
                         <option value="__custom__">+ Enter another skill...</option>
                       </select>
@@ -173,7 +261,7 @@ export default function StudentCard({ student }) {
                           type="text"
                           placeholder="Type custom skill to teach..."
                           value={customOfferInput}
-                          onChange={e => setCustomOfferInput(e.target.value)}
+                          onChange={(e) => setCustomOfferInput(e.target.value)}
                           disabled={sending}
                           style={{
                             marginTop: '8px',
@@ -194,7 +282,7 @@ export default function StudentCard({ student }) {
                         type="text"
                         placeholder="Type a skill you can teach (e.g. Python, React)..."
                         value={customOfferInput}
-                        onChange={e => {
+                        onChange={(e) => {
                           setCustomOfferInput(e.target.value)
                           setSelectedOffer('__custom__')
                         }}
@@ -220,11 +308,13 @@ export default function StudentCard({ student }) {
                   <label>I want to learn from {student.name}:</label>
                   <select
                     value={selectedWant}
-                    onChange={e => setSelectedWant(e.target.value)}
+                    onChange={(e) => setSelectedWant(e.target.value)}
                     disabled={sending}
                   >
-                    {student.skillsOffered?.map(s => (
-                      <option key={s} value={s}>{s}</option>
+                    {student.skillsOffered?.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -235,7 +325,7 @@ export default function StudentCard({ student }) {
                     type="text"
                     placeholder={`Hi ${student.name}, let's swap skills!`}
                     value={customMsg}
-                    onChange={e => setCustomMsg(e.target.value)}
+                    onChange={(e) => setCustomMsg(e.target.value)}
                     disabled={sending}
                     style={{
                       width: '100%',
@@ -259,6 +349,61 @@ export default function StudentCard({ student }) {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShowReportModal(false)}>✕</button>
+            <div className="modal-header">
+              <span className="modal-avatar">🚩</span>
+              <div>
+                <h3>Report {student.name}</h3>
+                <small style={{ color: 'var(--text-muted)' }}>Help maintain a safe learning community</small>
+              </div>
+            </div>
+
+            <form onSubmit={handleReport} className="modal-body">
+              <div className="modal-field">
+                <label>Reason for report:</label>
+                <select value={reportReason} onChange={(e) => setReportReason(e.target.value)}>
+                  <option value="Inappropriate behavior">Inappropriate behavior</option>
+                  <option value="Spam or advertising">Spam or advertising</option>
+                  <option value="Harassment or abuse">Harassment or abuse</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="modal-field">
+                <label>Details (optional):</label>
+                <textarea
+                  rows="3"
+                  placeholder="Provide context for moderators..."
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border)',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                  }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-secondary"
+                style={{ width: '100%', marginTop: '10px' }}
+              >
+                Submit Report
+              </button>
+            </form>
           </div>
         </div>
       )}

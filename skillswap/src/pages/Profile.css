@@ -298,6 +298,73 @@
   color: var(--text-muted);
 }
 
+.chip-level-badge {
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-left: 6px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.level-beginner {
+  background: rgba(46, 196, 182, 0.25);
+  color: var(--accent);
+}
+
+.level-intermediate {
+  background: rgba(108, 92, 231, 0.25);
+  color: var(--primary);
+}
+
+.level-advanced {
+  background: rgba(229, 161, 0, 0.25);
+  color: #E5A100;
+}
+
+.skill-level-select {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.profile-avail-preview {
+  margin: 16px 0;
+  text-align: left;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.profile-avail-preview h4 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.avail-preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.avail-chip {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.avail-empty-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 @media (max-width: 900px) {
   .profile-layout {
     grid-template-columns: 1fr;
@@ -310,4 +377,48 @@
   .edit-form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== Blocked Users List ===== */
+.blocked-users-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.blocked-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.blocked-user-avatar {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+}
+
+.blocked-user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.blocked-user-info strong {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.blocked-user-info small {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }

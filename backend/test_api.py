@@ -251,6 +251,167 @@ check("Invalid token → 401", r.status_code == 401)
 r = httpx.get(f"{BASE}/exchanges")
 check("Missing token → 401/403", r.status_code in (401, 403))
 
+# ── 14. Connect & Chat Feature ────────────────────────────────────────────────
+section("14 · Connect & Chat Feature")
+if target_id:
+    # 1. User A lists conversations
+    r = httpx.get(f"{BASE}/chat/conversations", headers=headers_a)
+    check("GET /chat/conversations → 200", r.status_code == 200)
+    convos_a = r.json()
+    check("Accepted exchange in conversations", any(c.get("exchangeId") == target_id for c in convos_a))
+    if convos_a:
+        peer = convos_a[0].get("peer", {})
+        check("Conversation has peer info", bool(peer.get("name") and peer.get("avatar")))
+
+    # 2. User B lists conversations
+    r = httpx.get(f"{BASE}/chat/conversations", headers=headers_b)
+    check("User B GET /chat/conversations → 200", r.status_code == 200)
+    convos_b = r.json()
+    check("User B sees conversation", any(c.get("exchangeId") == target_id for c in convos_b))
+
+    # 3. User A gets conversation details
+    r = httpx.get(f"{BASE}/chat/{target_id}", headers=headers_a)
+    check("GET /chat/{id} → 200", r.status_code == 200)
+    check("Details contain correct exchangeId", r.json().get("exchangeId") == target_id)
+
+    # 4. User B sends message to User A
+    msg_text_1 = "Hi Alex! Excited to connect and start exchanging skills."
+    r = httpx.post(f"{BASE}/chat/{target_id}/messages", headers=headers_b, json={"text": msg_text_1})
+    check("User B sends message → 201", r.status_code == 201)
+    msg1 = r.json()
+    check("Message text matches", msg1.get("text") == msg_text_1)
+    check("Message senderId matches User B", msg1.get("senderId") == user_b_id)
+    check("Message receiverId matches User A", msg1.get("receiverId") == user_a_id)
+    check("Message has timestamp", bool(msg1.get("timestamp")))
+
+    # 5. User A replies
+    msg_text_2 = "Hey Ananya! Ready whenever you are. Let's learn together!"
+    r = httpx.post(f"{BASE}/chat/{target_id}/messages", headers=headers_a, json={"text": msg_text_2})
+    check("User A replies → 201", r.status_code == 201)
+
+    # 6. Retrieve messages
+    r = httpx.get(f"{BASE}/chat/{target_id}/messages", headers=headers_a)
+    check("GET /chat/{id}/messages → 200", r.status_code == 200)
+    messages = r.json()
+    check("Messages retrieved in order", len(messages) >= 2 and messages[-1].get("text") == msg_text_2)
+
+    # 7. Empty message validation
+    r = httpx.post(f"{BASE}/chat/{target_id}/messages", headers=headers_a, json={"text": "   "})
+    check("Empty message rejected → 422", r.status_code == 422)
+
+    # 8. Unauthenticated access to messages rejected
+    r = httpx.get(f"{BASE}/chat/{target_id}/messages")
+    check("Unauthenticated chat access → 401/403", r.status_code in (401, 403))
+
+    # ── 15. Session Scheduling ────────────────────────────────────────────────
+    section("15 · Session Scheduling")
+    r = httpx.post(f"{BASE}/exchanges/{target_id}/schedule", headers=headers_a, json={
+        "date": "2026-12-01",
+        "time": "15:00",
+        "note": "Let's review React components first.",
+    })
+    check("Schedule session → 200", r.status_code == 200)
+    session_data = r.json().get("session", {})
+    check("Session date set", session_data.get("date") == "2026-12-01")
+    check("Session status scheduled", session_data.get("status") in ("scheduled", "rescheduled"))
+
+    # Reschedule
+    r = httpx.post(f"{BASE}/exchanges/{target_id}/schedule", headers=headers_b, json={
+        "date": "2026-12-02",
+        "time": "16:00",
+        "note": "Moved to Wednesday 4 PM.",
+    })
+    check("Reschedule session → 200", r.status_code == 200)
+    check("Session rescheduled date", r.json().get("session", {}).get("date") == "2026-12-02")
+
+    # Cancel session
+    r = httpx.post(f"{BASE}/exchanges/{target_id}/schedule/cancel", headers=headers_a)
+    check("Cancel session → 200", r.status_code == 200)
+    check("Session cancelled", r.json().get("session", {}).get("status") == "cancelled")
+
+    # ── 16. Exchange Completion ───────────────────────────────────────────────
+    section("16 · Exchange Completion")
+    r = httpx.patch(f"{BASE}/exchanges/{target_id}/status", headers=headers_a, json={"status": "completed"})
+    check("Mark exchange completed → 200", r.status_code == 200)
+    check("Exchange status completed", r.json().get("status") == "completed")
+
+    # ── 17. Rating and Feedback ───────────────────────────────────────────────
+    section("17 · Rating and Feedback")
+    r = httpx.post(f"{BASE}/reviews/{target_id}", headers=headers_a, json={
+        "rating": 5.0,
+        "feedback": "Amazing peer! Learned a ton of Machine Learning.",
+    })
+    check("Submit review User A → 201", r.status_code == 201)
+    check("Review rating stored", r.json().get("rating") == 5.0)
+
+    # Duplicate review prevention
+    r = httpx.post(f"{BASE}/reviews/{target_id}", headers=headers_a, json={
+        "rating": 4.0,
+        "feedback": "Duplicate attempt.",
+    })
+    check("Duplicate review rejected → 400", r.status_code == 400)
+
+    # User B reviews User A
+    r = httpx.post(f"{BASE}/reviews/{target_id}", headers=headers_b, json={
+        "rating": 5.0,
+        "feedback": "Great React teacher! Very patient and knowledgeable.",
+    })
+    check("Submit review User B → 201", r.status_code == 201)
+
+    # Get reviews for exchange
+    r = httpx.get(f"{BASE}/reviews/{target_id}", headers=headers_a)
+    check("Get exchange reviews → 200", r.status_code == 200)
+    check("Both reviews listed", len(r.json()) >= 2)
+
+    # ── 18. Notifications ─────────────────────────────────────────────────────
+    section("18 · Notifications")
+    r = httpx.get(f"{BASE}/notifications", headers=headers_a)
+    check("Get notifications → 200", r.status_code == 200)
+    notifs_a = r.json()
+    check("Notifications received", isinstance(notifs_a, list) and len(notifs_a) > 0)
+
+    # Mark all read
+    r = httpx.patch(f"{BASE}/notifications/read-all", headers=headers_a)
+    check("Mark all read → 200", r.status_code == 200)
+
+    # ── 19. Moderation: Report & Block ────────────────────────────────────────
+    section("19 · Moderation (Report & Block)")
+    r = httpx.post(f"{BASE}/moderation/report", headers=headers_a, json={
+        "reportedUserId": user_b_id,
+        "reason": "Spam behavior",
+        "details": "Testing report flow.",
+    })
+    check("Report user → 200", r.status_code == 200)
+
+    r = httpx.post(f"{BASE}/moderation/block", headers=headers_a, json={
+        "blockedUserId": user_b_id,
+    })
+    check("Block user → 200", r.status_code == 200)
+
+    # Verify blocked in auth/me
+    r = httpx.get(f"{BASE}/auth/me", headers=headers_a)
+    check("Blocked user in user profile", user_b_id in r.json().get("blockedUsers", []))
+
+    # Unblock user
+    r = httpx.post(f"{BASE}/moderation/unblock", headers=headers_a, json={
+        "blockedUserId": user_b_id,
+    })
+    check("Unblock user → 200", r.status_code == 200)
+
+    # ── 20. Student Availability & Skill Levels ───────────────────────────────
+    section("20 · Student Availability & Skill Levels")
+    r = httpx.put(f"{BASE}/users/profile", headers=headers_a, json={
+        "availability": ["Mon 2-5 PM", "Wed 4-6 PM", "Weekends"],
+        "skillsOffered": ["React (Advanced)", "JavaScript (Intermediate)"],
+        "skillsWanted": ["Machine Learning (Beginner)", "Python (Intermediate)"],
+    })
+    check("Update availability & skills with levels → 200", r.status_code == 200)
+    updated_profile = r.json()
+    check("Availability saved", "Mon 2-5 PM" in updated_profile.get("availability", []))
+    check("Skill levels saved", any("Advanced" in s for s in updated_profile.get("skillsOffered", [])))
+else:
+    print("  (No accepted exchange available — skipped chat tests)")
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print(f"\n{'═' * 55}")
 passed = sum(1 for _, ok in results if ok)

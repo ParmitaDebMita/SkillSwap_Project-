@@ -14,9 +14,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.auth.router import router as auth_router
+from app.chat.router import router as chat_router
 from app.config import settings
 from app.database import close_connection, create_indexes
 from app.exchanges.router import router as exchanges_router
+from app.moderation.router import router as moderation_router
+from app.notifications.router import router as notifications_router
+from app.reviews.router import router as reviews_router
 from app.users.router import router as users_router
 
 
@@ -53,6 +57,10 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(exchanges_router, prefix="/api")
+app.include_router(chat_router, prefix="/api")
+app.include_router(notifications_router, prefix="/api")
+app.include_router(reviews_router, prefix="/api")
+app.include_router(moderation_router, prefix="/api")
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

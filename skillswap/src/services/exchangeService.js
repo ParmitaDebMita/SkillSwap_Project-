@@ -41,13 +41,41 @@ export const exchangeService = {
   },
 
   /**
-   * Accept or reject an exchange request.
-   * Only the receiver can call this — backend enforces 403 otherwise.
+   * Accept, reject, or mark an exchange as completed.
    */
   async updateStatus(requestId, newStatus) {
     const res = await apiRequest(`/exchanges/${requestId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status: newStatus }),
+    })
+
+    if (!res.success) {
+      return { success: false, error: res.error }
+    }
+    return { success: true, updatedRequest: res.data }
+  },
+
+  /**
+   * Schedule or reschedule a session inside an accepted exchange.
+   */
+  async scheduleSession(requestId, { date, time, note = '' }) {
+    const res = await apiRequest(`/exchanges/${requestId}/schedule`, {
+      method: 'POST',
+      body: JSON.stringify({ date, time, note }),
+    })
+
+    if (!res.success) {
+      return { success: false, error: res.error }
+    }
+    return { success: true, updatedRequest: res.data }
+  },
+
+  /**
+   * Cancel a scheduled session.
+   */
+  async cancelSession(requestId) {
+    const res = await apiRequest(`/exchanges/${requestId}/schedule/cancel`, {
+      method: 'POST',
     })
 
     if (!res.success) {

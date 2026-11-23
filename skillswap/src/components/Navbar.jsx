@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import ThemeToggle from './ThemeToggle'
+import NotificationBell from './NotificationBell'
 import './Navbar.css'
 import { useState } from 'react'
 
@@ -92,6 +93,7 @@ export default function Navbar() {
           </div>
 
           <div className="nav-actions">
+            {isLoggedIn && <NotificationBell />}
             <ThemeToggle />
             {isLoggedIn ? (
               <div className="nav-user">

@@ -10,3 +10,4 @@ class ProfileUpdateRequest(BaseModel):
     skillsWanted: Optional[List[str]] = None
     avatar: Optional[str] = None
     category: Optional[str] = None
+    availability: Optional[List[str]] = None

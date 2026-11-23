@@ -84,17 +84,40 @@ export function DataProvider({ children }) {
     return res
   }, [user])
 
-  // ── Accept / reject request ───────────────────────────────────────────────
+  // ── Accept / reject / complete request ────────────────────────────────────
   const updateRequestStatus = useCallback(async (requestId, newStatus) => {
     const res = await exchangeService.updateStatus(requestId, newStatus)
     if (res.success) {
       setRequests(prev =>
-        prev.map(r => r.id === requestId ? { ...r, status: newStatus } : r)
+        prev.map(r => r.id === requestId ? (res.updatedRequest || { ...r, status: newStatus }) : r)
       )
       return true
     }
     console.error('[DataContext] updateRequestStatus failed:', res.error)
     return false
+  }, [])
+
+  // ── Session Scheduling ────────────────────────────────────────────────────
+  const scheduleSession = useCallback(async (requestId, sessionData) => {
+    const res = await exchangeService.scheduleSession(requestId, sessionData)
+    if (res.success) {
+      setRequests(prev =>
+        prev.map(r => r.id === requestId ? res.updatedRequest : r)
+      )
+      return { success: true }
+    }
+    return { success: false, error: res.error }
+  }, [])
+
+  const cancelSession = useCallback(async (requestId) => {
+    const res = await exchangeService.cancelSession(requestId)
+    if (res.success) {
+      setRequests(prev =>
+        prev.map(r => r.id === requestId ? res.updatedRequest : r)
+      )
+      return { success: true }
+    }
+    return { success: false, error: res.error }
   }, [])
 
   // ── Reload students (e.g. after profile update) ───────────────────────────
@@ -113,6 +136,8 @@ export function DataProvider({ children }) {
         requestsLoading,
         sendRequest,
         updateRequestStatus,
+        scheduleSession,
+        cancelSession,
         reloadStudents,
         loadRequests,
       }}

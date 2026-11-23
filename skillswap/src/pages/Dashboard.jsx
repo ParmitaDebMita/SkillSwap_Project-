@@ -20,7 +20,7 @@ export default function Dashboard() {
         r.from?.id === user?.id ||
         r.toId === user?.id ||
         r.to?.id === user?.id) &&
-      r.status === 'accepted'
+      (r.status === 'accepted' || r.status === 'completed')
   ).length
 
   // Synchronized exchange count from actual accepted proposals and user record
