@@ -67,6 +67,7 @@ body {
   line-height: 1.6;
   transition: background-color 0.3s ease, color 0.3s ease;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 a {
@@ -310,6 +311,31 @@ img {
   .btn-lg {
     padding: 14px 28px;
     font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 12px;
+  }
+
+  .section-title {
+    font-size: 1.4rem;
+  }
+
+  .page-container {
+    padding-top: 80px;
+    padding-bottom: 40px;
+  }
+
+  .btn {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+  }
+
+  .btn-sm {
+    padding: 7px 14px;
+    font-size: 0.82rem;
   }
 }
 

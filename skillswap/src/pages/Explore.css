@@ -164,3 +164,23 @@
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 480px) {
+  .explore-count {
+    padding: 8px 14px;
+  }
+
+  .count-number {
+    font-size: 1.2rem;
+  }
+
+  .search-input {
+    padding: 12px 40px 12px 44px;
+    font-size: 0.95rem;
+  }
+
+  .category-btn {
+    padding: 6px 14px;
+    font-size: 0.82rem;
+  }
+}

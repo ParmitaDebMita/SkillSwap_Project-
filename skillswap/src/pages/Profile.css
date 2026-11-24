@@ -379,6 +379,31 @@
   }
 }
 
+@media (max-width: 480px) {
+  .profile-card {
+    padding: 20px 16px;
+  }
+
+  .profile-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .add-skill-bar {
+    flex-direction: column;
+  }
+
+  .blocked-user-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .achievements-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ===== Blocked Users List ===== */
 .blocked-users-list {
   list-style: none;

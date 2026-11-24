@@ -182,3 +182,23 @@
     font-size: 1.2rem;
   }
 }
+
+@media (max-width: 480px) {
+  .nav-logo {
+    font-size: 1.1rem;
+  }
+
+  .logo-icon {
+    font-size: 1.3rem;
+  }
+
+  .nav-container {
+    height: 56px;
+  }
+
+  .mobile-toggle {
+    width: 36px;
+    height: 36px;
+    font-size: 1.1rem;
+  }
+}

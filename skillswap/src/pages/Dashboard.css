@@ -218,3 +218,18 @@
   }
 }
 
+@media (max-width: 480px) {
+  .dashboard-card {
+    padding: 20px 16px;
+  }
+
+  .welcome-title {
+    font-size: 1.3rem;
+  }
+
+  .dashboard-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+

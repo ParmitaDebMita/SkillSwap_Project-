@@ -325,4 +325,27 @@
   .request-card {
     padding: 16px;
   }
+
+  .schedule-inputs-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .request-actions {
+    flex-wrap: wrap;
+  }
+
+  .session-btns-wrap {
+    flex-wrap: wrap;
+  }
+
+  .session-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .star-btn {
+    font-size: 1.5rem;
+  }
 }
