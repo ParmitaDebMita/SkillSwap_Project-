@@ -40,9 +40,9 @@ async def submit_review(
     if current_id_str not in (from_id, to_id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not a participant in this exchange.")
 
-    # Status must be completed (or accepted)
+    # Reviews are only permitted for completed exchanges
     status_val = exchange_doc.get("status")
-    if status_val not in ("completed", "accepted"):
+    if status_val != "completed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Reviews can only be submitted for completed exchanges. Current status: {status_val}.",

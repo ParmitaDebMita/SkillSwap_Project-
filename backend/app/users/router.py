@@ -3,7 +3,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.auth.models import UserResponse, doc_to_user
+from app.auth.models import StudentPublicResponse, UserResponse, doc_to_student, doc_to_user
 from app.auth.utils import get_current_user
 from app.database import get_database
 from app.users.models import ProfileUpdateRequest
@@ -42,7 +42,7 @@ async def update_profile(
     return doc_to_user(result)
 
 
-@router.get("/students", response_model=List[UserResponse])
+@router.get("/students", response_model=List[StudentPublicResponse])
 async def get_students(
     search: Optional[str] = Query(None, description="Search across name, skills, university, bio"),
     category: Optional[str] = Query(None, description="Filter by skill category"),
@@ -53,6 +53,7 @@ async def get_students(
     Return a paginated list of students.
     Supports full-text search and category filtering.
     Does NOT require authentication (public directory).
+    Omits sensitive fields (email, blockedUsers).
     """
     db = get_database()
     query: dict = {}
@@ -74,7 +75,7 @@ async def get_students(
         query["category"] = {"$regex": re.escape(category.strip()), "$options": "i"}
 
     skip = (page - 1) * limit
-    cursor = db.users.find(query, {"hashed_password": 0}).skip(skip).limit(limit)
+    cursor = db.users.find(query, {"hashed_password": 0, "email": 0, "blockedUsers": 0}).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
 
-    return [doc_to_user(doc) for doc in docs]
+    return [doc_to_student(doc) for doc in docs]

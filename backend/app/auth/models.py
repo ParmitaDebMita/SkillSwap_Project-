@@ -46,6 +46,21 @@ class UserResponse(BaseModel):
     # NOTE: password is intentionally excluded from this model
 
 
+class StudentPublicResponse(BaseModel):
+    id: str
+    name: str
+    avatar: str = "🎓"
+    bio: str = ""
+    university: str = ""
+    skillsOffered: List[str] = []
+    skillsWanted: List[str] = []
+    category: str = "Technology"
+    rating: float = 5.0
+    exchanges: int = 0
+    availability: List[str] = []
+    # NOTE: email and blockedUsers are intentionally excluded for public student views
+
+
 class TokenResponse(BaseModel):
     token: str
     user: UserResponse
@@ -67,4 +82,21 @@ def doc_to_user(doc: dict) -> UserResponse:
         exchanges=doc.get("exchanges", 0),
         availability=doc.get("availability", []),
         blockedUsers=doc.get("blockedUsers", []),
+    )
+
+
+def doc_to_student(doc: dict) -> StudentPublicResponse:
+    """Convert a MongoDB document to a StudentPublicResponse, omitting email and blockedUsers."""
+    return StudentPublicResponse(
+        id=str(doc["_id"]),
+        name=doc.get("name", ""),
+        avatar=doc.get("avatar", "🎓"),
+        bio=doc.get("bio", ""),
+        university=doc.get("university", ""),
+        skillsOffered=doc.get("skillsOffered", []),
+        skillsWanted=doc.get("skillsWanted", []),
+        category=doc.get("category", "Technology"),
+        rating=doc.get("rating", 5.0),
+        exchanges=doc.get("exchanges", 0),
+        availability=doc.get("availability", []),
     )

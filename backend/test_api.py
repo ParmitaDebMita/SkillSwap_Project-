@@ -150,6 +150,10 @@ check("Search results filtered", any("Alex" in s.get("name", "") for s in r.json
 r = httpx.get(f"{BASE}/students", params={"category": "Technology"})
 check("Category filter → 200", r.status_code == 200)
 
+# Privacy check: ensure email and blockedUsers are excluded from public students response
+check("Student emails hidden from public response", not any("email" in s for s in students))
+check("Student blockedUsers hidden from public response", not any("blockedUsers" in s for s in students))
+
 # ── 8. Create Exchange ────────────────────────────────────────────────────────
 section("8 · POST /api/exchanges")
 headers_b = {"Authorization": f"Bearer {token_b}"}
@@ -337,6 +341,26 @@ if target_id:
 
     # ── 17. Rating and Feedback ───────────────────────────────────────────────
     section("17 · Rating and Feedback")
+
+    # Non-participant review attempt (unauthorized participant)
+    # Signup User C as a non-participant
+    r_c = httpx.post(f"{BASE}/auth/signup", json={"name": "Charlie", "email": "charlie_test_99@example.com", "password": "password123"})
+    if r_c.status_code in (200, 201):
+        tok_c = r_c.json().get("token")
+    else:
+        r_c_login = httpx.post(f"{BASE}/auth/login", json={"email": "charlie_test_99@example.com", "password": "password123"})
+        tok_c = r_c_login.json().get("token")
+    r_non_part = httpx.post(f"{BASE}/reviews/{target_id}", headers={"Authorization": f"Bearer {tok_c}"}, json={"rating": 5.0, "feedback": "Sneaky review"})
+    check("Non-participant review rejected → 403", r_non_part.status_code == 403)
+
+    # Reviewing non-completed exchange rejected
+    # Create an exchange with Charlie (pending)
+    r_pend = httpx.post(f"{BASE}/exchanges", headers=headers_a, json={"toId": r_c.json().get("user", {}).get("id") or r_c_login.json().get("user", {}).get("id"), "skillOffered": "Python", "skillWanted": "Design", "message": "Pending exchange"})
+    if r_pend.status_code in (200, 201):
+        pend_id = r_pend.json().get("id")
+        r_rev_pend = httpx.post(f"{BASE}/reviews/{pend_id}", headers=headers_a, json={"rating": 5.0, "feedback": "Premature review"})
+        check("Reviewing non-completed exchange rejected → 400", r_rev_pend.status_code == 400)
+
     r = httpx.post(f"{BASE}/reviews/{target_id}", headers=headers_a, json={
         "rating": 5.0,
         "feedback": "Amazing peer! Learned a ton of Machine Learning.",
