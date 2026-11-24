@@ -228,6 +228,17 @@ async def send_message(
     # Determine receiver
     receiver_id = to_id if current_id_str == from_id else from_id
 
+    # Check if either user has blocked the other
+    receiver_doc = await db.users.find_one({"_id": ObjectId(receiver_id)})
+    if receiver_doc:
+        current_blocked = current_user.get("blockedUsers", [])
+        receiver_blocked = receiver_doc.get("blockedUsers", [])
+        if receiver_id in current_blocked or current_id_str in receiver_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot send messages because one of the users is blocked.",
+            )
+
     now = datetime.now(timezone.utc)
     new_message = {
         "exchange_id": exchange_id,

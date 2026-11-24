@@ -7,7 +7,7 @@ import './StudentCard.css'
 
 export default function StudentCard({ student }) {
   const { sendRequest } = useData()
-  const { user, isLoggedIn } = useAuth()
+  const { user, isLoggedIn, refreshUser } = useAuth()
   const navigate = useNavigate()
 
   const [showModal, setShowModal] = useState(false)
@@ -90,11 +90,22 @@ export default function StudentCard({ student }) {
     setTimeout(() => setModFeedback(''), 4000)
   }
 
+  const isBlocked = user?.blockedUsers?.includes(student.id)
+
   const handleBlock = async () => {
     if (!window.confirm(`Are you sure you want to block ${student.name}?`)) return
     const res = await moderationService.blockUser(student.id)
+    if (res.success && refreshUser) await refreshUser()
     setShowMenu(false)
     setModFeedback(res.success ? `✓ ${student.name} blocked.` : `⚠️ ${res.error}`)
+    setTimeout(() => setModFeedback(''), 4000)
+  }
+
+  const handleUnblock = async () => {
+    const res = await moderationService.unblockUser(student.id)
+    if (res.success && refreshUser) await refreshUser()
+    setShowMenu(false)
+    setModFeedback(res.success ? `✓ ${student.name} unblocked.` : `⚠️ ${res.error}`)
     setTimeout(() => setModFeedback(''), 4000)
   }
 
@@ -150,9 +161,15 @@ export default function StudentCard({ student }) {
                     >
                       🚩 Report
                     </button>
-                    <button onClick={handleBlock} className="text-danger">
-                      🚫 Block
-                    </button>
+                    {isBlocked ? (
+                      <button onClick={handleUnblock} className="text-accent">
+                        🔓 Unblock
+                      </button>
+                    ) : (
+                      <button onClick={handleBlock} className="text-danger">
+                        🚫 Block
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

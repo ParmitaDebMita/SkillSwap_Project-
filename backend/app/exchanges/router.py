@@ -67,6 +67,15 @@ async def create_exchange(
             detail="Target student not found.",
         )
 
+    # Prevent exchange if either user has blocked the other
+    current_blocked = current_user.get("blockedUsers", [])
+    target_blocked = target_doc.get("blockedUsers", [])
+    if body.toId in current_blocked or current_id_str in target_blocked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot send an exchange request to this student.",
+        )
+
     # Prevent duplicate pending requests between same pair
     existing = await db.exchanges.find_one(
         {

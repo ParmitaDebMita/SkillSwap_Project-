@@ -8,7 +8,7 @@ import './RequestCard.css'
 
 export default function RequestCard({ request }) {
   const { updateRequestStatus, scheduleSession, cancelSession } = useData()
-  const { user } = useAuth()
+  const { user, refreshUser } = useAuth()
   const [updating, setUpdating] = useState(false)
 
   // Chat modal state
@@ -143,12 +143,24 @@ export default function RequestCard({ request }) {
     setTimeout(() => setModerationMsg(''), 4000)
   }
 
+  const isBlocked = person?.id && user?.blockedUsers?.includes(person.id)
+
   const handleBlock = async () => {
     if (!person?.id) return
     if (!window.confirm(`Are you sure you want to block ${person.name}?`)) return
     const res = await moderationService.blockUser(person.id)
+    if (res.success && refreshUser) await refreshUser()
     setShowMenu(false)
     setModerationMsg(res.success ? `✓ ${person.name} has been blocked.` : `⚠️ ${res.error}`)
+    setTimeout(() => setModerationMsg(''), 4000)
+  }
+
+  const handleUnblock = async () => {
+    if (!person?.id) return
+    const res = await moderationService.unblockUser(person.id)
+    if (res.success && refreshUser) await refreshUser()
+    setShowMenu(false)
+    setModerationMsg(res.success ? `✓ ${person.name} has been unblocked.` : `⚠️ ${res.error}`)
     setTimeout(() => setModerationMsg(''), 4000)
   }
 
@@ -189,9 +201,15 @@ export default function RequestCard({ request }) {
                 >
                   🚩 Report Student
                 </button>
-                <button onClick={handleBlock} className="text-danger">
-                  🚫 Block Student
-                </button>
+                {isBlocked ? (
+                  <button onClick={handleUnblock} className="text-accent">
+                    🔓 Unblock Student
+                  </button>
+                ) : (
+                  <button onClick={handleBlock} className="text-danger">
+                    🚫 Block Student
+                  </button>
+                )}
               </div>
             )}
           </div>

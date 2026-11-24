@@ -68,6 +68,16 @@ export function AuthProvider({ children }) {
     return false
   }, [])
 
+  // ── Refresh user: GET /api/auth/me ────────────────────────────────────────
+  const refreshUser = useCallback(async () => {
+    const freshUser = await authService.fetchCurrentUser()
+    if (freshUser) {
+      setUser(freshUser)
+      return freshUser
+    }
+    return null
+  }, [])
+
   // ── Logout ───────────────────────────────────────────────────────────────
   const logout = useCallback(() => {
     authService.logout()
@@ -84,6 +94,7 @@ export function AuthProvider({ children }) {
         login,
         signup,
         updateProfile,
+        refreshUser,
         logout,
       }}
     >

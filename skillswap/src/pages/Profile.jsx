@@ -5,7 +5,7 @@ import { moderationService } from '../services/moderationService'
 import './Profile.css'
 
 export default function Profile() {
-  const { user, updateProfile } = useAuth()
+  const { user, updateProfile, refreshUser } = useAuth()
   const { reloadStudents } = useData()
 
   const [isEditing, setIsEditing] = useState(false)
@@ -120,6 +120,8 @@ export default function Profile() {
     const res = await moderationService.unblockUser(blockedUserId)
     if (res.success) {
       setBlockedUsers(prev => prev.filter(u => u.id !== blockedUserId))
+      if (refreshUser) await refreshUser()
+      reloadStudents()
     }
     setUnblockingId(null)
   }
